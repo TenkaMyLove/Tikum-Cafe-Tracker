@@ -126,6 +126,8 @@ const INITIAL_VISITS = [
   }
 ];
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
 // --- VIEWPORT & ORIENTATION DETECTOR HOOK ---
 function useViewport() {
   const [viewport, setViewport] = useState({
@@ -168,6 +170,32 @@ export default function App() {
     const saved = localStorage.getItem('cafeVisits');
     return saved ? JSON.parse(saved) : INITIAL_VISITS;
   });
+
+  const [isOffline, setIsOffline] = useState(false);
+
+  // Fetch visits from backend on mount, falling back to localStorage if offline
+  useEffect(() => {
+    async function fetchVisits() {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/visits`);
+        if (!response.ok) throw new Error('Server returned error status');
+        const data = await response.json();
+        setVisits(data);
+        setIsOffline(false);
+        localStorage.setItem('cafeVisits', JSON.stringify(data));
+      } catch (err) {
+        console.warn('⚠️ Backend API offline. Operating in Local-Only Cache mode:', err.message);
+        setIsOffline(true);
+        const saved = localStorage.getItem('cafeVisits');
+        if (saved) {
+          setVisits(JSON.parse(saved));
+        } else {
+          setVisits(INITIAL_VISITS);
+        }
+      }
+    }
+    fetchVisits();
+  }, []);
 
   const [activeTab, setActiveTab] = useState('feed'); // 'feed' | 'map' | 'add'
   const [isRegisterMode, setIsRegisterMode] = useState(false);
@@ -213,7 +241,7 @@ export default function App() {
     }
   };
 
-  // Save State to LocalStorage
+  // Save State to LocalStorage (as cache)
   useEffect(() => {
     try {
       localStorage.setItem('cafeVisits', JSON.stringify(visits));
@@ -232,7 +260,7 @@ export default function App() {
   }, [currentUser]);
 
   // Handle Authentication (Tikum Member - Admin Access)
-  const handleAuthSubmit = (e) => {
+  const handleAuthSubmit = async (e) => {
     e.preventDefault();
     setAuthError('');
     if (!loginEmail || !loginPassword) return;
@@ -242,37 +270,101 @@ export default function App() {
         setAuthError('Please enter your name.');
         return;
       }
-      // Check if email already exists
-      const exists = users.some(u => u.email.toLowerCase() === loginEmail.toLowerCase());
-      if (exists) {
-        setAuthError('An account with this email already exists.');
-        return;
-      }
+      
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: loginEmail.toLowerCase(),
+            password: loginPassword,
+            name: registerName,
+            role: 'admin'
+          })
+        });
 
-      const newUser = {
-        email: loginEmail.toLowerCase(),
-        password: loginPassword,
-        name: registerName,
-        role: 'admin'
-      };
+        if (!response.ok) {
+          const errData = await response.json();
+          throw new Error(errData.error || 'Registration failed');
+        }
 
-      const updatedUsers = [...users, newUser];
-      setUsers(updatedUsers);
-      localStorage.setItem('tikum_users', JSON.stringify(updatedUsers));
-      setCurrentUser(newUser);
+        const registeredUser = await response.json();
+        
+        // Sync with local fallback registry
+        const exists = users.some(u => u.email.toLowerCase() === loginEmail.toLowerCase());
+        if (!exists) {
+          const newUserLocal = {
+            email: loginEmail.toLowerCase(),
+            password: loginPassword,
+            name: registerName,
+            role: 'admin'
+          };
+          const updatedUsers = [...users, newUserLocal];
+          setUsers(updatedUsers);
+          localStorage.setItem('tikum_users', JSON.stringify(updatedUsers));
+        }
 
-      setLoginEmail('');
-      setLoginPassword('');
-      setRegisterName('');
-    } else {
-      // Login mode
-      const foundUser = users.find(u => u.email.toLowerCase() === loginEmail.toLowerCase() && u.password === loginPassword);
-      if (foundUser) {
-        setCurrentUser(foundUser);
+        setCurrentUser(registeredUser);
         setLoginEmail('');
         setLoginPassword('');
-      } else {
-        setAuthError('Incorrect email or password. Hint: Use member@tikum.com / member123');
+        setRegisterName('');
+      } catch (err) {
+        console.warn('⚠️ Server registration failed or offline. Attempting local offline registry fallback...', err.message);
+        
+        const exists = users.some(u => u.email.toLowerCase() === loginEmail.toLowerCase());
+        if (exists) {
+          setAuthError('An account with this email already exists.');
+          return;
+        }
+
+        const newUserLocal = {
+          email: loginEmail.toLowerCase(),
+          password: loginPassword,
+          name: registerName,
+          role: 'admin'
+        };
+
+        const updatedUsers = [...users, newUserLocal];
+        setUsers(updatedUsers);
+        localStorage.setItem('tikum_users', JSON.stringify(updatedUsers));
+        setCurrentUser(newUserLocal);
+
+        setLoginEmail('');
+        setLoginPassword('');
+        setRegisterName('');
+      }
+    } else {
+      // Login mode
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: loginEmail.toLowerCase(),
+            password: loginPassword
+          })
+        });
+
+        if (!response.ok) {
+          const errData = await response.json();
+          throw new Error(errData.error || 'Login failed');
+        }
+
+        const loggedInUser = await response.json();
+        setCurrentUser(loggedInUser);
+        setLoginEmail('');
+        setLoginPassword('');
+      } catch (err) {
+        console.warn('⚠️ Server login offline/failed. Checking local registry fallback...', err.message);
+        
+        const foundUser = users.find(u => u.email.toLowerCase() === loginEmail.toLowerCase() && u.password === loginPassword);
+        if (foundUser) {
+          setCurrentUser(foundUser);
+          setLoginEmail('');
+          setLoginPassword('');
+        } else {
+          setAuthError('Incorrect email or password. Hint: Use member@tikum.com / member123');
+        }
       }
     }
   };
@@ -470,9 +562,28 @@ export default function App() {
       {/* Sidebar - Desktop */}
       <aside className="sidebar">
         <div>
-          <div className="brand">
-            <Icon name="coffee" style={{ width: '28px', height: '28px', color: 'var(--primary)' }} />
-            <span>Cafe Journal</span>
+          <div className="brand" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Icon name="coffee" style={{ width: '28px', height: '28px', color: 'var(--primary)' }} />
+              <span>Cafe Journal</span>
+            </div>
+            {isOffline && (
+              <div style={{
+                background: 'rgba(245, 158, 11, 0.12)',
+                border: '1px solid rgba(245, 158, 11, 0.25)',
+                color: 'var(--accent)',
+                fontSize: '0.72rem',
+                fontWeight: '700',
+                padding: '0.2rem 0.5rem',
+                borderRadius: '20px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem'
+              }}>
+                <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'var(--accent)', display: 'inline-block' }}></span>
+                Offline Cache
+              </div>
+            )}
           </div>
           
           <nav className="nav-links">
@@ -563,9 +674,21 @@ export default function App() {
       {/* Mobile Header */}
       {!viewport.isMobileLandscape && (
         <header className="mobile-header">
-          <div className="brand" style={{ marginBottom: 0 }}>
+          <div className="brand" style={{ marginBottom: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <Icon name="coffee" style={{ width: '24px', height: '24px', color: 'var(--primary)' }} />
             <span>Cafe Journal</span>
+            {isOffline && (
+              <span style={{
+                background: 'rgba(245, 158, 11, 0.15)',
+                border: '1px solid rgba(245, 158, 11, 0.3)',
+                color: 'var(--accent)',
+                fontSize: '0.65rem',
+                fontWeight: '800',
+                padding: '0.15rem 0.4rem',
+                borderRadius: '12px',
+                textTransform: 'uppercase'
+              }}>Offline</span>
+            )}
           </div>
           <button 
             className="nav-item" 
@@ -1162,7 +1285,7 @@ function AddVisitView({ setVisits, currentUser, setActiveTab }) {
   };
 
   // Submit Visit Form
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!name || rating === 0) return;
 
@@ -1170,8 +1293,7 @@ function AddVisitView({ setVisits, currentUser, setActiveTab }) {
     const finalLat = lat || 40.7128 + (Math.random() - 0.5) * 0.05;
     const finalLng = lng || -74.0060 + (Math.random() - 0.5) * 0.05;
 
-    const newVisit = {
-      id: Date.now().toString(),
+    const payload = {
       name,
       rating,
       review,
@@ -1180,8 +1302,7 @@ function AddVisitView({ setVisits, currentUser, setActiveTab }) {
       menuPhoto: menuPhotos,
       lat: parseFloat(finalLat),
       lng: parseFloat(finalLng),
-      user: currentUser.name,
-      date: new Date().toISOString(),
+      userEmail: currentUser.email || 'member@tikum.com',
       orderedItems,
       priceSpent,
       foodPriceRange,
@@ -1189,14 +1310,75 @@ function AddVisitView({ setVisits, currentUser, setActiveTab }) {
       address: address || 'Cozy Corner, New York'
     };
 
-    setVisits((prev) => [newVisit, ...prev]);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/visits`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        throw new Error('API server returned error status');
+      }
+
+      const result = await response.json();
+      
+      const newVisit = {
+        id: result.visitId || Date.now().toString(),
+        name,
+        rating,
+        review,
+        photo,
+        boughtPhoto: boughtPhotos,
+        menuPhoto: menuPhotos,
+        lat: parseFloat(finalLat),
+        lng: parseFloat(finalLng),
+        user: currentUser.name,
+        userEmail: currentUser.email || 'member@tikum.com',
+        date: new Date().toISOString(),
+        orderedItems,
+        priceSpent,
+        foodPriceRange,
+        beveragePriceRange,
+        address: address || 'Cozy Corner, New York'
+      };
+
+      setVisits((prev) => [newVisit, ...prev]);
+    } catch (err) {
+      console.warn('⚠️ API server offline. Saving visit locally to offline LocalStorage cache...', err.message);
+      
+      const offlineId = `offline-${Date.now()}`;
+      const newVisit = {
+        id: offlineId,
+        name,
+        rating,
+        review,
+        photo,
+        boughtPhoto: boughtPhotos,
+        menuPhoto: menuPhotos,
+        lat: parseFloat(finalLat),
+        lng: parseFloat(finalLng),
+        user: currentUser.name,
+        userEmail: currentUser.email || 'member@tikum.com',
+        date: new Date().toISOString(),
+        orderedItems,
+        priceSpent,
+        foodPriceRange,
+        beveragePriceRange,
+        address: address || 'Cozy Corner, New York'
+      };
+
+      setVisits((prev) => [newVisit, ...prev]);
+      alert('📝 Offline Mode: Your visit is saved locally on this browser! It will sync with the database next time the server is connected.');
+    }
+
     setActiveTab('feed');
   };
 
   return (
     <div className="add-container">
-      <div className="glass form-panel" style={{ padding: '1rem', width: '100%', maxWidth: '840px', margin: '0 auto' }}>
-        <h2 style={{ margin: '1rem', fontFamily: 'Outfit', fontSize: '1.75rem' }}>Log New Coffee Spot</h2>
+      <div className="glass form-panel" style={{ padding: '2.5rem' }}>
+        <h2 style={{ marginBottom: '1.5rem', fontFamily: 'Outfit', fontSize: '1.75rem' }}>Log New Coffee Spot</h2>
         
         <form onSubmit={handleSubmit} className="pwa-landscape-form-grid">
           <div className="form-left-col">
