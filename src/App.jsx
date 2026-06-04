@@ -1195,8 +1195,8 @@ function AddVisitView({ setVisits, currentUser, setActiveTab }) {
 
   return (
     <div className="add-container">
-      <div className="glass form-panel" style={{ padding: '2.5rem' }}>
-        <h2 style={{ marginBottom: '1.5rem', fontFamily: 'Outfit', fontSize: '1.75rem' }}>Log New Coffee Spot</h2>
+      <div className="glass form-panel" style={{ padding: '1rem', width: '100%', maxWidth: '840px', margin: '0 auto' }}>
+        <h2 style={{ margin: '1rem', fontFamily: 'Outfit', fontSize: '1.75rem' }}>Log New Coffee Spot</h2>
         
         <form onSubmit={handleSubmit} className="pwa-landscape-form-grid">
           <div className="form-left-col">
