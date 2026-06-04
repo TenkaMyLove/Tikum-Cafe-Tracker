@@ -126,7 +126,39 @@ const INITIAL_VISITS = [
   }
 ];
 
+// --- VIEWPORT & ORIENTATION DETECTOR HOOK ---
+function useViewport() {
+  const [viewport, setViewport] = useState({
+    width: typeof window !== 'undefined' ? window.innerWidth : 1200,
+    height: typeof window !== 'undefined' ? window.innerHeight : 800
+  });
+
+  useEffect(() => {
+    const handleResize = () => {
+      setViewport({
+        width: window.innerWidth,
+        height: window.innerHeight
+      });
+    };
+    window.addEventListener('resize', handleResize, { passive: true });
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const isMobile = viewport.width <= 900;
+  const isLandscape = viewport.width > viewport.height;
+  const isMobileLandscape = isMobile && isLandscape;
+
+  return {
+    ...viewport,
+    isMobile,
+    isLandscape,
+    isMobileLandscape
+  };
+}
+
 export default function App() {
+  const viewport = useViewport();
+
   const [currentUser, setCurrentUser] = useState(() => {
     const saved = localStorage.getItem('currentUser');
     return saved ? JSON.parse(saved) : null;
@@ -141,6 +173,23 @@ export default function App() {
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
+  const [registerName, setRegisterName] = useState('');
+  const [authError, setAuthError] = useState('');
+  const [activeAuthTab, setActiveAuthTab] = useState('member'); // 'member' | 'guest'
+  const [users, setUsers] = useState(() => {
+    const saved = localStorage.getItem('tikum_users');
+    if (saved) return JSON.parse(saved);
+    const seed = [
+      {
+        email: 'member@tikum.com',
+        password: 'member123',
+        name: 'Tikum Member',
+        role: 'admin'
+      }
+    ];
+    localStorage.setItem('tikum_users', JSON.stringify(seed));
+    return seed;
+  });
   const [selectedVisit, setSelectedVisit] = useState(null);
   const [mapCenterOverride, setMapCenterOverride] = useState(null);
   const [lightboxData, setLightboxData] = useState(null);
@@ -182,24 +231,65 @@ export default function App() {
     }
   }, [currentUser]);
 
-  // Handle Authentication
+  // Handle Authentication (Tikum Member - Admin Access)
   const handleAuthSubmit = (e) => {
     e.preventDefault();
+    setAuthError('');
     if (!loginEmail || !loginPassword) return;
 
-    const username = loginEmail.split('@')[0];
-    const uppercaseName = username.charAt(0).toUpperCase() + username.slice(1);
-    
+    if (isRegisterMode) {
+      if (!registerName) {
+        setAuthError('Please enter your name.');
+        return;
+      }
+      // Check if email already exists
+      const exists = users.some(u => u.email.toLowerCase() === loginEmail.toLowerCase());
+      if (exists) {
+        setAuthError('An account with this email already exists.');
+        return;
+      }
+
+      const newUser = {
+        email: loginEmail.toLowerCase(),
+        password: loginPassword,
+        name: registerName,
+        role: 'admin'
+      };
+
+      const updatedUsers = [...users, newUser];
+      setUsers(updatedUsers);
+      localStorage.setItem('tikum_users', JSON.stringify(updatedUsers));
+      setCurrentUser(newUser);
+
+      setLoginEmail('');
+      setLoginPassword('');
+      setRegisterName('');
+    } else {
+      // Login mode
+      const foundUser = users.find(u => u.email.toLowerCase() === loginEmail.toLowerCase() && u.password === loginPassword);
+      if (foundUser) {
+        setCurrentUser(foundUser);
+        setLoginEmail('');
+        setLoginPassword('');
+      } else {
+        setAuthError('Incorrect email or password. Hint: Use member@tikum.com / member123');
+      }
+    }
+  };
+
+  // Handle Guest Login (View Only Access)
+  const handleGuestLogin = () => {
+    setAuthError('');
     setCurrentUser({
-      email: loginEmail,
-      name: uppercaseName
+      email: 'guest@tikum.com',
+      name: 'Guest Explorer',
+      role: 'guest' // View Only Access
     });
-    setLoginEmail('');
-    setLoginPassword('');
   };
 
   const handleLogout = () => {
     setCurrentUser(null);
+    setAuthError('');
     setActiveTab('feed');
   };
 
@@ -211,63 +301,172 @@ export default function App() {
 
   // If not logged in, show Auth
   if (!currentUser) {
+    const handleAutofill = () => {
+      setIsRegisterMode(false);
+      setLoginEmail('member@tikum.com');
+      setLoginPassword('member123');
+      setAuthError('');
+    };
+
     return (
       <div className="auth-container">
         <div className="glass auth-card">
           <div className="auth-header">
-            <div className="flex-center" style={{ gap: '0.5rem', marginBottom: '1rem' }}>
+            <div className="flex-center" style={{ gap: '0.5rem', marginBottom: '0.5rem' }}>
               <Icon name="coffee" className="icon" style={{ width: '32px', height: '32px', color: 'var(--primary)' }} />
-              <span style={{ fontSize: '1.75rem', fontWeight: 800, fontFamily: 'Outfit' }}>Cafe Journal</span>
+              <span style={{ fontSize: '1.75rem', fontWeight: 800, fontFamily: 'Outfit', letterSpacing: '-0.5px' }}>Cafe Journal</span>
             </div>
-            <p>{isRegisterMode ? 'Create an account to start sharing' : 'Log in to track & share cafe spots'}</p>
+            <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#fff', marginBottom: '0.25rem' }}>Select Access Role</h3>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+              Choose your role to explore or log coffee spots.
+            </p>
           </div>
-          
-          <form onSubmit={handleAuthSubmit}>
-            <div className="form-group">
-              <label>Email Address</label>
-              <input 
-                type="email" 
-                className="form-input" 
-                placeholder="you@email.com" 
-                value={loginEmail}
-                onChange={(e) => setLoginEmail(e.target.value)}
-                required
-              />
-            </div>
-            
-            <div className="form-group">
-              <label>Password</label>
-              <input 
-                type="password" 
-                className="form-input" 
-                placeholder="••••••••" 
-                value={loginPassword}
-                onChange={(e) => setLoginPassword(e.target.value)}
-                required
-              />
-            </div>
-            
-            <button type="submit" className="btn-primary">
-              {isRegisterMode ? 'Sign Up' : 'Sign In'}
-            </button>
-          </form>
-          
-          <p style={{ marginTop: '1.5rem', textAlign: 'center', fontSize: '0.9rem', color: 'var(--text-muted)' }}>
-            {isRegisterMode ? 'Already have an account?' : "Don't have an account yet?"}{' '}
-            <span 
-              style={{ color: 'var(--primary)', cursor: 'pointer', fontWeight: 600 }}
-              onClick={() => setIsRegisterMode(!isRegisterMode)}
+
+          {/* Segmented Tab Control */}
+          <div className="auth-segmented-control">
+            <button 
+              className={`auth-tab-btn ${activeAuthTab === 'member' ? 'active' : ''}`}
+              onClick={() => {
+                setActiveAuthTab('member');
+                setAuthError('');
+              }}
             >
-              {isRegisterMode ? 'Log In' : 'Sign Up'}
-            </span>
-          </p>
+              ☕ Tikum Member
+            </button>
+            <button 
+              className={`auth-tab-btn ${activeAuthTab === 'guest' ? 'active' : ''}`}
+              onClick={() => {
+                setActiveAuthTab('guest');
+                setAuthError('');
+              }}
+            >
+              👤 Guest Explorer
+            </button>
+          </div>
+
+          {/* Beautiful Glassmorphic Error Alert */}
+          {authError && (
+            <div className="auth-error-alert">
+              <svg style={{ width: '18px', height: '18px', flexShrink: 0 }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" x2="12" y1="8" y2="12" />
+                <line x1="12" x2="12.01" y1="16" y2="16" />
+              </svg>
+              <span>{authError}</span>
+            </div>
+          )}
+
+          {activeAuthTab === 'member' ? (
+            <div className="auth-form-wrapper" style={{ animation: 'guestFadeIn 0.3s ease-out' }}>
+              {/* Autofill Demo Capsule */}
+              {!isRegisterMode && (
+                <div className="autofill-container">
+                  <div className="autofill-text">
+                    <span style={{ fontWeight: 700, color: 'var(--primary)', display: 'block', marginBottom: '0.1rem' }}>💡 Quick Demo Login</span>
+                    <span>member@tikum.com / member123</span>
+                  </div>
+                  <button type="button" className="autofill-btn" onClick={handleAutofill}>
+                    Autofill
+                  </button>
+                </div>
+              )}
+
+              <form onSubmit={handleAuthSubmit}>
+                {isRegisterMode && (
+                  <div className="form-group">
+                    <label style={{ fontSize: '0.75rem' }}>Full Name</label>
+                    <input 
+                      type="text" 
+                      className="form-input" 
+                      placeholder="e.g. Alex Forester" 
+                      value={registerName}
+                      onChange={(e) => setRegisterName(e.target.value)}
+                      required
+                    />
+                  </div>
+                )}
+
+                <div className="form-group">
+                  <label style={{ fontSize: '0.75rem' }}>Email Address</label>
+                  <input 
+                    type="email" 
+                    className="form-input" 
+                    placeholder="member@tikum.com" 
+                    value={loginEmail}
+                    onChange={(e) => setLoginEmail(e.target.value)}
+                    required
+                  />
+                </div>
+                
+                <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+                  <label style={{ fontSize: '0.75rem' }}>Password</label>
+                  <input 
+                    type="password" 
+                    className="form-input" 
+                    placeholder="••••••••" 
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                    required
+                  />
+                </div>
+                
+                <button type="submit" className="btn-primary" style={{ padding: '0.85rem' }}>
+                  {isRegisterMode ? 'Register & Access Journal' : 'Login as Tikum Member'}
+                </button>
+              </form>
+
+              <p style={{ textAlign: 'center', fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '1.25rem' }}>
+                {isRegisterMode ? 'Already have an account?' : "Don't have a member account yet?"}{' '}
+                <span 
+                  style={{ color: 'var(--primary)', cursor: 'pointer', fontWeight: 600 }}
+                  onClick={() => {
+                    setIsRegisterMode(!isRegisterMode);
+                    setAuthError('');
+                  }}
+                >
+                  {isRegisterMode ? 'Log In' : 'Sign Up'}
+                </span>
+              </p>
+            </div>
+          ) : (
+            <div className="auth-guest-wrapper" style={{ textAlign: 'center', padding: '1rem 0', animation: 'guestFadeIn 0.3s ease-out' }}>
+              <div style={{ background: 'rgba(245, 158, 11, 0.03)', border: '1px solid rgba(245, 158, 11, 0.1)', borderRadius: 'var(--radius-lg)', padding: '1.5rem', marginBottom: '1.5rem' }}>
+                <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>👤</div>
+                <h4 style={{ fontWeight: 700, color: 'var(--accent)', fontSize: '1rem', marginBottom: '0.5rem' }}>Read-Only Guest Mode</h4>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: '1.5', margin: 0 }}>
+                  You can explore the live feed, interact with Leaflet map markers, and view item grids/detailed menus. Creating, editing, or uploading visits will be locked.
+                </p>
+              </div>
+
+              <button 
+                type="button" 
+                className="btn-primary" 
+                onClick={handleGuestLogin} 
+                style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  gap: '0.5rem', 
+                  background: 'linear-gradient(135deg, var(--accent), #f59e0b)',
+                  boxShadow: '0 0 20px rgba(245, 158, 11, 0.25)',
+                  padding: '0.85rem',
+                  border: 'none',
+                  color: 'white',
+                  cursor: 'pointer'
+                }}
+              >
+                <Icon name="user" style={{ width: '18px', height: '18px', color: '#fff' }} />
+                <span style={{ fontWeight: 700 }}>Continue as Guest Explorer</span>
+              </button>
+            </div>
+          )}
         </div>
       </div>
     );
   }
 
   return (
-    <div className="app-layout">
+    <div className={`app-layout ${viewport.isMobileLandscape ? 'pwa-mobile-landscape' : ''}`}>
       {/* Sidebar - Desktop */}
       <aside className="sidebar">
         <div>
@@ -317,52 +516,104 @@ export default function App() {
         </div>
       </aside>
 
+      {/* PWA Compact Sidebar - Mobile Landscape */}
+      {viewport.isMobileLandscape && (
+        <aside className="pwa-landscape-sidebar">
+          <div className="pwa-sidebar-top">
+            <div className="pwa-brand" title="Cafe Journal">
+              <Icon name="coffee" style={{ width: '22px', height: '22px', color: 'var(--primary)' }} />
+            </div>
+            
+            <nav className="pwa-nav-links">
+              <button 
+                className={`pwa-nav-item ${activeTab === 'feed' ? 'active' : ''}`}
+                onClick={() => setActiveTab('feed')}
+                title="Feed"
+              >
+                <Icon name="feed" style={{ width: '20px', height: '20px' }} />
+              </button>
+              <button 
+                className={`pwa-nav-item ${activeTab === 'map' ? 'active' : ''}`}
+                onClick={() => setActiveTab('map')}
+                title="Interactive Map"
+              >
+                <Icon name="map" style={{ width: '20px', height: '20px' }} />
+              </button>
+              <button 
+                className={`pwa-nav-item ${activeTab === 'add' ? 'active' : ''}`}
+                onClick={() => setActiveTab('add')}
+                title="Log Visit"
+              >
+                <Icon name="add" style={{ width: '20px', height: '20px' }} />
+              </button>
+            </nav>
+          </div>
+
+          <div className="pwa-user-profile">
+            <div className="pwa-avatar" title={`${currentUser.name} (${currentUser.role === 'admin' ? 'Member' : 'Guest'})`}>
+              {currentUser.name.charAt(0)}
+            </div>
+            <button className="pwa-logout-btn" onClick={handleLogout} title="Log Out">
+              <Icon name="logout" style={{ width: '18px', height: '18px' }} />
+            </button>
+          </div>
+        </aside>
+      )}
+
       {/* Mobile Header */}
-      <header className="mobile-header">
-        <div className="brand" style={{ marginBottom: 0 }}>
-          <Icon name="coffee" style={{ width: '24px', height: '24px', color: 'var(--primary)' }} />
-          <span>Cafe Journal</span>
-        </div>
-        <button 
-          className="nav-item" 
-          style={{ padding: '0.5rem', minWidth: 'auto', background: 'transparent' }} 
-          onClick={handleLogout}
-        >
-          <Icon name="logout" style={{ width: '20px', height: '20px' }} />
-        </button>
-      </header>
+      {!viewport.isMobileLandscape && (
+        <header className="mobile-header">
+          <div className="brand" style={{ marginBottom: 0 }}>
+            <Icon name="coffee" style={{ width: '24px', height: '24px', color: 'var(--primary)' }} />
+            <span>Cafe Journal</span>
+          </div>
+          <button 
+            className="nav-item" 
+            style={{ padding: '0.5rem', minWidth: 'auto', background: 'transparent' }} 
+            onClick={handleLogout}
+          >
+            <Icon name="logout" style={{ width: '20px', height: '20px' }} />
+          </button>
+        </header>
+      )}
 
       {/* Main Workspace */}
       <main className="workspace">
         {activeTab === 'feed' && <FeedView visits={visits} onSelectVisit={setSelectedVisit} onNavigateToMap={handleNavigateToMap} />}
         {activeTab === 'map' && <MapView visits={visits} mapCenterOverride={mapCenterOverride} setMapCenterOverride={setMapCenterOverride} />}
-        {activeTab === 'add' && <AddVisitView setVisits={setVisits} currentUser={currentUser} setActiveTab={setActiveTab} />}
+        {activeTab === 'add' && (
+          currentUser.role === 'guest'
+            ? <LockedGuestView onLogout={handleLogout} />
+            : <AddVisitView setVisits={setVisits} currentUser={currentUser} setActiveTab={setActiveTab} />
+        )}
       </main>
 
       {/* Mobile Bottom Navigation */}
-      <nav className="mobile-nav">
-        <button 
-          className={`mobile-nav-btn ${activeTab === 'feed' ? 'active' : ''}`}
-          onClick={() => setActiveTab('feed')}
-        >
-          <Icon name="feed" />
-          <span>Feed</span>
-        </button>
-        <button 
-          className={`mobile-nav-btn ${activeTab === 'map' ? 'active' : ''}`}
-          onClick={() => setActiveTab('map')}
-        >
-          <Icon name="map" />
-          <span>Map</span>
-        </button>
-        <button 
-          className={`mobile-nav-btn ${activeTab === 'add' ? 'active' : ''}`}
-          onClick={() => setActiveTab('add')}
-        >
-          <Icon name="add" />
-          <span>Add</span>
-        </button>
-      </nav>
+      {!viewport.isMobileLandscape && (
+        <nav className="mobile-nav">
+          <button 
+            className={`mobile-nav-btn ${activeTab === 'feed' ? 'active' : ''}`}
+            onClick={() => setActiveTab('feed')}
+          >
+            <Icon name="feed" />
+            <span>Feed</span>
+          </button>
+          <button 
+            className={`mobile-nav-btn ${activeTab === 'map' ? 'active' : ''}`}
+            onClick={() => setActiveTab('map')}
+          >
+            <Icon name="map" />
+            <span>Map</span>
+          </button>
+          <button 
+            className={`mobile-nav-btn ${activeTab === 'add' ? 'active' : ''}`}
+            onClick={() => setActiveTab('add')}
+          >
+            <Icon name="add" />
+            <span>Add</span>
+          </button>
+        </nav>
+      )}
 
       {/* Detail Modal Overlay */}
       {selectedVisit && (
@@ -728,6 +979,30 @@ function PhotoGallery({ photos, onRemove, onPhotoClick }) {
   );
 }
 
+// --- LOCKED GUEST VIEW FOR VIEW-ONLY ROLE ---
+function LockedGuestView({ onLogout }) {
+  return (
+    <div className="locked-guest-container">
+      <div className="glass locked-guest-card">
+        <div className="lock-icon-wrapper">
+          <svg className="lock-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+          </svg>
+        </div>
+        <h2>Member Access Required</h2>
+        <p>
+          You are currently exploring as a <strong>Guest Explorer</strong>. Logging visits, dropping map pins, and uploading multiple cafe and menu photos is reserved for registered Tikum Members.
+        </p>
+        <button className="btn-primary" onClick={onLogout} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginTop: '1.5rem', width: 'auto', marginInline: 'auto', padding: '0.8rem 1.5rem' }}>
+          <Icon name="logout" style={{ width: '16px', height: '16px' }} />
+          <span>Log In as Tikum Member</span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function AddVisitView({ setVisits, currentUser, setActiveTab }) {
   const [name, setName] = useState('');
   const [rating, setRating] = useState(0);
@@ -923,258 +1198,264 @@ function AddVisitView({ setVisits, currentUser, setActiveTab }) {
       <div className="glass form-panel" style={{ padding: '2.5rem' }}>
         <h2 style={{ marginBottom: '1.5rem', fontFamily: 'Outfit', fontSize: '1.75rem' }}>Log New Coffee Spot</h2>
         
-        <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label>Cafe Name</label>
-            <input 
-              type="text" 
-              className="form-input" 
-              placeholder="e.g. Blue Bottle Coffee" 
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Rating</label>
-            <div className="rating-container">
-              {[1, 2, 3, 4, 5].map((val) => (
-                <button
-                  key={val}
-                  type="button"
-                  className={`rating-star-btn ${val <= rating ? 'active' : ''}`}
-                  onClick={() => setRating(val)}
-                >
-                  ☕
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="form-group">
-            <label>Address / Location Name</label>
-            <input 
-              type="text" 
-              className="form-input" 
-              placeholder="e.g. Jl. Pangeran No. 12, Manhattan" 
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              required
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Items Ordered / Menu items</label>
-            <input 
-              type="text" 
-              className="form-input" 
-              placeholder="e.g. Pistachio Croissant, Matcha Latte, V60 Brew" 
-              value={orderedItems}
-              onChange={(e) => setOrderedItems(e.target.value)}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Total Price (IDR)</label>
-            <input 
-              type="text" 
-              className="form-input" 
-              placeholder="e.g. 120.000" 
-              value={priceSpent}
-              onChange={(e) => setPriceSpent(e.target.value)}
-            />
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem', marginBottom: '1.5rem' }}>
+        <form onSubmit={handleSubmit} className="pwa-landscape-form-grid">
+          <div className="form-left-col">
             <div className="form-group">
-              <label>Food Price Range</label>
-              <div className="price-range-container">
+              <label>Cafe Name</label>
+              <input 
+                type="text" 
+                className="form-input" 
+                placeholder="e.g. Blue Bottle Coffee" 
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Rating</label>
+              <div className="rating-container">
                 {[1, 2, 3, 4, 5].map((val) => (
                   <button
                     key={val}
                     type="button"
-                    style={{ flex: 1 }}
-                    className={`price-range-btn food ${val <= foodPriceRange ? 'active' : ''}`}
-                    onClick={() => setFoodPriceRange(val)}
+                    className={`rating-star-btn ${val <= rating ? 'active' : ''}`}
+                    onClick={() => setRating(val)}
                   >
-                    {formatPriceRange(val)}
+                    ☕
                   </button>
                 ))}
               </div>
             </div>
 
             <div className="form-group">
-              <label>Beverages Price Range</label>
-              <div className="price-range-container">
-                {[1, 2, 3, 4, 5].map((val) => (
-                  <button
-                    key={val}
-                    type="button"
-                    style={{ flex: 1 }}
-                    className={`price-range-btn ${val <= beveragePriceRange ? 'active' : ''}`}
-                    onClick={() => setBeveragePriceRange(val)}
-                  >
-                    {formatPriceRange(val)}
-                  </button>
-                ))}
+              <label>Address / Location Name</label>
+              <input 
+                type="text" 
+                className="form-input" 
+                placeholder="e.g. Jl. Pangeran No. 12, Manhattan" 
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                required
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Items Ordered / Menu items</label>
+              <input 
+                type="text" 
+                className="form-input" 
+                placeholder="e.g. Pistachio Croissant, Matcha Latte, V60 Brew" 
+                value={orderedItems}
+                onChange={(e) => setOrderedItems(e.target.value)}
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Total Price (IDR)</label>
+              <input 
+                type="text" 
+                className="form-input" 
+                placeholder="e.g. 120.000" 
+                value={priceSpent}
+                onChange={(e) => setPriceSpent(e.target.value)}
+              />
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem', marginBottom: '1.5rem' }}>
+              <div className="form-group">
+                <label>Food Price Range</label>
+                <div className="price-range-container">
+                  {[1, 2, 3, 4, 5].map((val) => (
+                    <button
+                      key={val}
+                      type="button"
+                      style={{ flex: 1 }}
+                      className={`price-range-btn food ${val <= foodPriceRange ? 'active' : ''}`}
+                      onClick={() => setFoodPriceRange(val)}
+                    >
+                      {formatPriceRange(val)}
+                    </button>
+                  ))}
+                </div>
               </div>
+
+              <div className="form-group">
+                <label>Beverages Price Range</label>
+                <div className="price-range-container">
+                  {[1, 2, 3, 4, 5].map((val) => (
+                    <button
+                      key={val}
+                      type="button"
+                      style={{ flex: 1 }}
+                      className={`price-range-btn ${val <= beveragePriceRange ? 'active' : ''}`}
+                      onClick={() => setBeveragePriceRange(val)}
+                    >
+                      {formatPriceRange(val)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label>What did you buy? / Thoughts</label>
+              <textarea 
+                className="form-input" 
+                rows="4" 
+                placeholder="Amazing latte art, and the roast was exceptionally bright!" 
+                value={review}
+                onChange={(e) => setReview(e.target.value)}
+              />
             </div>
           </div>
 
-          <div className="form-group">
-            <label>What did you buy? / Thoughts</label>
-            <textarea 
-              className="form-input" 
-              rows="4" 
-              placeholder="Amazing latte art, and the roast was exceptionally bright!" 
-              value={review}
-              onChange={(e) => setReview(e.target.value)}
-            />
-          </div>
+          <div className="form-right-col">
+            {/* Photos Upload Section */}
+            <div className="form-group">
+              <label>Primary Cafe Cover Photo</label>
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                style={{ display: 'none' }} 
+                accept="image/*"
+                onChange={handleFileChange}
+              />
+              {photo ? (
+                <div style={{ position: 'relative' }}>
+                  <img src={photo} alt="Preview" className="upload-preview" />
+                  <button 
+                    type="button" 
+                    className="btn-secondary" 
+                    style={{ position: 'absolute', bottom: '10px', right: '10px', width: 'auto', padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
+                    onClick={() => setPhoto('')}
+                  >
+                    Remove Cover Photo
+                  </button>
+                </div>
+              ) : (
+                <div className="upload-dropzone" onClick={() => fileInputRef.current.click()}>
+                  <Icon name="add" style={{ width: '28px', height: '28px', color: 'var(--text-muted)' }} />
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: '0.95rem' }}>Upload Main Cover Photo</div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>Select a beautiful picture of the cafe store front</div>
+                  </div>
+                </div>
+              )}
+            </div>
 
-          {/* Photos Upload Section */}
-          <div className="form-group">
-            <label>Primary Cafe Cover Photo</label>
-            <input 
-              type="file" 
-              ref={fileInputRef} 
-              style={{ display: 'none' }} 
-              accept="image/*"
-              onChange={handleFileChange}
-            />
-            {photo ? (
-              <div style={{ position: 'relative' }}>
-                <img src={photo} alt="Preview" className="upload-preview" />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem', marginBottom: '1rem' }}>
+              {/* Bought Photos */}
+              <div className="form-group">
+                <label>What you bought (Photos)</label>
+                <input 
+                  type="file" 
+                  ref={boughtFileInputRef} 
+                  style={{ display: 'none' }} 
+                  accept="image/*"
+                  multiple
+                  onChange={handleBoughtFileChange}
+                />
+                {boughtPhotos.length > 0 ? (
+                  <div>
+                    <PhotoGallery photos={boughtPhotos} onRemove={(idx) => setBoughtPhotos(prev => prev.filter((_, i) => i !== idx))} />
+                    <button 
+                      type="button" 
+                      className="btn-secondary" 
+                      style={{ marginTop: '0.5rem', width: 'auto', padding: '0.35rem 0.75rem', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.25rem', marginInline: 'auto' }}
+                      onClick={() => boughtFileInputRef.current.click()}
+                    >
+                      <Icon name="add" style={{ width: '12px', height: '12px' }} />
+                      <span>Add More</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="upload-dropzone" style={{ padding: '1.25rem' }} onClick={() => boughtFileInputRef.current.click()}>
+                    <Icon name="add" style={{ width: '20px', height: '20px', color: 'var(--text-muted)' }} />
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>Upload Item Photos</div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>E.g. Latte cups, croissants (multiple allowed)</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Menu Photos */}
+              <div className="form-group">
+                <label>Full Restaurant Menu (Photos)</label>
+                <input 
+                  type="file" 
+                  ref={menuFileInputRef} 
+                  style={{ display: 'none' }} 
+                  accept="image/*"
+                  multiple
+                  onChange={handleMenuFileChange}
+                />
+                {menuPhotos.length > 0 ? (
+                  <div>
+                    <PhotoGallery photos={menuPhotos} onRemove={(idx) => setMenuPhotos(prev => prev.filter((_, i) => i !== idx))} />
+                    <button 
+                      type="button" 
+                      className="btn-secondary" 
+                      style={{ marginTop: '0.5rem', width: 'auto', padding: '0.35rem 0.75rem', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.25rem', marginInline: 'auto' }}
+                      onClick={() => menuFileInputRef.current.click()}
+                    >
+                      <Icon name="add" style={{ width: '12px', height: '12px' }} />
+                      <span>Add More</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="upload-dropzone" style={{ padding: '1.25rem' }} onClick={() => menuFileInputRef.current.click()}>
+                    <Icon name="add" style={{ width: '20px', height: '20px', color: 'var(--text-muted)' }} />
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>Upload Menu Cards</div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>E.g. Blackboard list, brochure (multiple allowed)</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Pin Drop Map Section */}
+            <div className="form-group" style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '1.25rem', marginTop: '1.5rem' }}>
+              <label style={{ marginBottom: '0.25rem' }}>Pinpoint Location / Drop Map Pin</label>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-dim)', marginBottom: '1rem' }}>
+                Drop a pin on the map to share where the cafe is. You can search using "Get Coordinates", OR click/drag directly on the map below!
+              </p>
+              
+              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
                 <button 
                   type="button" 
                   className="btn-secondary" 
-                  style={{ position: 'absolute', bottom: '10px', right: '10px', width: 'auto', padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
-                  onClick={() => setPhoto('')}
+                  style={{ width: 'auto', display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 1.1rem' }}
+                  onClick={handleGetLocation}
                 >
-                  Remove Cover Photo
+                  <Icon name="location" style={{ width: '16px', height: '16px' }} />
+                  <span>Get Coordinates</span>
                 </button>
-              </div>
-            ) : (
-              <div className="upload-dropzone" onClick={() => fileInputRef.current.click()}>
-                <Icon name="add" style={{ width: '28px', height: '28px', color: 'var(--text-muted)' }} />
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: '0.95rem' }}>Upload Main Cover Photo</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>Select a beautiful picture of the cafe store front</div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem', marginBottom: '1rem' }}>
-            {/* Bought Photos */}
-            <div className="form-group">
-              <label>What you bought (Photos)</label>
-              <input 
-                type="file" 
-                ref={boughtFileInputRef} 
-                style={{ display: 'none' }} 
-                accept="image/*"
-                multiple
-                onChange={handleBoughtFileChange}
-              />
-              {boughtPhotos.length > 0 ? (
-                <div>
-                  <PhotoGallery photos={boughtPhotos} onRemove={(idx) => setBoughtPhotos(prev => prev.filter((_, i) => i !== idx))} />
-                  <button 
-                    type="button" 
-                    className="btn-secondary" 
-                    style={{ marginTop: '0.5rem', width: 'auto', padding: '0.35rem 0.75rem', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.25rem', marginInline: 'auto' }}
-                    onClick={() => boughtFileInputRef.current.click()}
-                  >
-                    <Icon name="add" style={{ width: '12px', height: '12px' }} />
-                    <span>Add More</span>
-                  </button>
-                </div>
-              ) : (
-                <div className="upload-dropzone" style={{ padding: '1.25rem' }} onClick={() => boughtFileInputRef.current.click()}>
-                  <Icon name="add" style={{ width: '20px', height: '20px', color: 'var(--text-muted)' }} />
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>Upload Item Photos</div>
-                    <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>E.g. Latte cups, croissants (multiple allowed)</div>
+                
+                {(lat || lng) && (
+                  <div style={{ display: 'flex', alignItems: 'center', fontSize: '0.8rem', color: 'var(--primary)', fontWeight: 600, background: 'rgba(139, 92, 246, 0.05)', padding: '0.5rem 0.85rem', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(139, 92, 246, 0.15)' }}>
+                    <code>📍 {parseFloat(lat).toFixed(5)}, {parseFloat(lng).toFixed(5)}</code>
                   </div>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
 
-            {/* Menu Photos */}
-            <div className="form-group">
-              <label>Full Restaurant Menu (Photos)</label>
-              <input 
-                type="file" 
-                ref={menuFileInputRef} 
-                style={{ display: 'none' }} 
-                accept="image/*"
-                multiple
-                onChange={handleMenuFileChange}
-              />
-              {menuPhotos.length > 0 ? (
-                <div>
-                  <PhotoGallery photos={menuPhotos} onRemove={(idx) => setMenuPhotos(prev => prev.filter((_, i) => i !== idx))} />
-                  <button 
-                    type="button" 
-                    className="btn-secondary" 
-                    style={{ marginTop: '0.5rem', width: 'auto', padding: '0.35rem 0.75rem', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.25rem', marginInline: 'auto' }}
-                    onClick={() => menuFileInputRef.current.click()}
-                  >
-                    <Icon name="add" style={{ width: '12px', height: '12px' }} />
-                    <span>Add More</span>
-                  </button>
-                </div>
-              ) : (
-                <div className="upload-dropzone" style={{ padding: '1.25rem' }} onClick={() => menuFileInputRef.current.click()}>
-                  <Icon name="add" style={{ width: '20px', height: '20px', color: 'var(--text-muted)' }} />
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>Upload Menu Cards</div>
-                    <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>E.g. Blackboard list, brochure (multiple allowed)</div>
-                  </div>
-                </div>
+              <div ref={miniContainerRef} className="mini-map-viewport"></div>
+
+              {locationStatus && (
+                <p style={{ fontSize: '0.85rem', marginTop: '0.75rem', fontWeight: 500, color: locationStatus.includes('✓') ? 'var(--success)' : 'var(--text-muted)' }}>
+                  {locationStatus}
+                </p>
               )}
             </div>
           </div>
 
-          {/* Pin Drop Map Section */}
-          <div className="form-group" style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '1.25rem', marginTop: '1.5rem' }}>
-            <label style={{ marginBottom: '0.25rem' }}>Pinpoint Location / Drop Map Pin</label>
-            <p style={{ fontSize: '0.8rem', color: 'var(--text-dim)', marginBottom: '1rem' }}>
-              Drop a pin on the map to share where the cafe is. You can search using "Get Coordinates", OR click/drag directly on the map below!
-            </p>
-            
-            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
-              <button 
-                type="button" 
-                className="btn-secondary" 
-                style={{ width: 'auto', display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 1.1rem' }}
-                onClick={handleGetLocation}
-              >
-                <Icon name="location" style={{ width: '16px', height: '16px' }} />
-                <span>Get Coordinates</span>
-              </button>
-              
-              {(lat || lng) && (
-                <div style={{ display: 'flex', alignItems: 'center', fontSize: '0.8rem', color: 'var(--primary)', fontWeight: 600, background: 'rgba(139, 92, 246, 0.05)', padding: '0.5rem 0.85rem', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(139, 92, 246, 0.15)' }}>
-                  <code>📍 {parseFloat(lat).toFixed(5)}, {parseFloat(lng).toFixed(5)}</code>
-                </div>
-              )}
-            </div>
-
-            <div ref={miniContainerRef} className="mini-map-viewport"></div>
-
-            {locationStatus && (
-              <p style={{ fontSize: '0.85rem', marginTop: '0.75rem', fontWeight: 500, color: locationStatus.includes('✓') ? 'var(--success)' : 'var(--text-muted)' }}>
-                {locationStatus}
-              </p>
-            )}
+          <div className="form-submit-row">
+            <button type="submit" className="btn-primary" style={{ marginTop: '1rem' }}>
+              Save Cafe Log
+            </button>
           </div>
-
-          <button type="submit" className="btn-primary" style={{ marginTop: '2rem' }}>
-            Save Cafe Log
-          </button>
         </form>
       </div>
     </div>
