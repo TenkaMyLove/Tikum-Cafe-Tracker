@@ -13,7 +13,6 @@ jobs:
       - name: Deploy to VPS
         run: |
           mkdir -p ~/.ssh
-
           printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
 
@@ -24,12 +23,5 @@ jobs:
               -o IdentitiesOnly=yes \
               -i ~/.ssh/deploy_key \
               -p "${{ secrets.VPS_PORT }}" \
-              "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" << 'EOF'
-                cd /var/www/tct/Tikum-Cafe-Tracker
-                git pull origin main
-                npm ci
-                npm run build
-                rm -rf /var/www/html/*
-                cp -r dist/* /var/www/html/
-                service nginx reload
-          EOF
+              "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+              "cd /var/www/tct/Tikum-Cafe-Tracker && git pull origin main && npm ci && npm run build && rm -rf /var/www/html/* && cp -r dist/* /var/www/html/ && service nginx reload"
