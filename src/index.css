@@ -1664,5 +1664,44 @@ body {
   75% { transform: translateX(4px); }
 }
 
+/* Responsive Form Row Layouts */
+.price-ranges-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.coordinates-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+@media (max-width: 600px) {
+  .price-ranges-row {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  .price-range-container {
+    gap: 0.25rem;
+  }
+  .price-range-btn {
+    padding: 0.5rem 0.25rem;
+    font-size: 0.75rem;
+  }
+  .coordinates-row {
+    grid-template-columns: 1fr 1fr;
+  }
+  .coordinates-row .gps-btn-container {
+    grid-column: 1 / span 2;
+  }
+  .coordinates-row .gps-btn-container button {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
 
 

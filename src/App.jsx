@@ -1319,7 +1319,7 @@ function AddVisitView({ onVisitAdded, currentUser, setActiveTab }) {
               />
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem', marginBottom: '1.5rem' }}>
+            <div className="price-ranges-row">
               <div className="form-group">
                 <label>Food Price Range</label>
                 <div className="price-range-container">
@@ -1491,7 +1491,7 @@ function AddVisitView({ onVisitAdded, currentUser, setActiveTab }) {
                 />
               </div>
               
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '0.75rem', marginBottom: '1rem' }}>
+              <div className="coordinates-row">
                 <div className="form-group" style={{ marginBottom: 0 }}>
                   <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Latitude</label>
                   <input 
@@ -1516,7 +1516,7 @@ function AddVisitView({ onVisitAdded, currentUser, setActiveTab }) {
                     required
                   />
                 </div>
-                <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                <div className="gps-btn-container" style={{ display: 'flex', alignItems: 'flex-end' }}>
                   <button 
                     type="button" 
                     className="btn-secondary" 
