@@ -693,7 +693,7 @@ function FeedView({ visits, onSelectVisit, onNavigateToMap }) {
                   {visit.priceSpent && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', color: 'var(--accent)', fontWeight: 600 }}>
                       <Icon name="dollar" style={{ width: '14px', height: '14px', color: 'var(--accent)' }} />
-                      <span>IDR {visit.priceSpent}</span>
+                      <span>IDR {Number(visit.priceSpent).toLocaleString('id-ID')}</span>
                     </div>
                   )}
                   {(visit.foodPriceRange || visit.beveragePriceRange) && (
@@ -796,7 +796,7 @@ function MapView({ visits, mapCenterOverride, setMapCenterOverride }) {
             <h4>${visit.name}</h4>
             <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.5rem; font-size: 0.8rem;">
               <span style="color: var(--text-muted)">Rating: <strong>☕ ${visit.rating}.0</strong></span>
-              ${visit.priceSpent ? `<span style="color: var(--accent)">• Spent: <strong>IDR ${visit.priceSpent}</strong></span>` : ''}
+              ${visit.priceSpent ? `<span style="color: var(--accent)">• Spent: <strong>IDR ${Number(visit.priceSpent).toLocaleString('id-ID')}</strong></span>` : ''}
               <div style="font-size: 0.75rem; color: var(--text-dim); margin-bottom: 0.5rem;">
                 Food: <strong style="color: var(--accent)">${formatPriceRange(visit.foodPriceRange || 1)}</strong> | 
                 Bev: <strong style="color: var(--primary)">${formatPriceRange(visit.beveragePriceRange || 1)}</strong>
@@ -1224,7 +1224,7 @@ function AddVisitView({ onVisitAdded, currentUser, setActiveTab }) {
       lng: parseFloat(finalLng),
       userEmail: currentUser.email,
       orderedItems,
-      priceSpent,
+      priceSpent: priceSpent ? parseFloat(priceSpent.replace(/[^0-9]/g, '')) : null,
       foodPriceRange,
       beveragePriceRange,
       address: address || 'Cozy Corner, New York'
@@ -1632,7 +1632,7 @@ function VisitDetailModal({ visit, onClose, onNavigateToMap, onOpenLightbox }) {
             {visit.priceSpent && (
               <div className="detail-pill spent" title="Total Spent">
                 <Icon name="dollar" style={{ width: '14px', height: '14px' }} />
-                <span>IDR {visit.priceSpent}</span>
+                <span>IDR {Number(visit.priceSpent).toLocaleString('id-ID')}</span>
               </div>
             )}
           </div>
