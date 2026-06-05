@@ -2,6 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
+const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+  ? 'http://localhost:5000'
+  : '';
+
 // --- CUSTOM SVG ICONS (Lucide style) ---
 const Icon = ({ name, className = "icon" }) => {
   const icons = {
@@ -164,10 +168,7 @@ export default function App() {
     return saved ? JSON.parse(saved) : null;
   });
   
-  const [visits, setVisits] = useState(() => {
-    const saved = localStorage.getItem('cafeVisits');
-    return saved ? JSON.parse(saved) : INITIAL_VISITS;
-  });
+  const [visits, setVisits] = useState([]);
 
   const [activeTab, setActiveTab] = useState('feed'); // 'feed' | 'map' | 'add'
   const [isRegisterMode, setIsRegisterMode] = useState(false);
@@ -176,20 +177,6 @@ export default function App() {
   const [registerName, setRegisterName] = useState('');
   const [authError, setAuthError] = useState('');
   const [activeAuthTab, setActiveAuthTab] = useState('member'); // 'member' | 'guest'
-  const [users, setUsers] = useState(() => {
-    const saved = localStorage.getItem('tikum_users');
-    if (saved) return JSON.parse(saved);
-    const seed = [
-      {
-        email: 'member@tikum.com',
-        password: 'member123',
-        name: 'Tikum Member',
-        role: 'admin'
-      }
-    ];
-    localStorage.setItem('tikum_users', JSON.stringify(seed));
-    return seed;
-  });
   const [selectedVisit, setSelectedVisit] = useState(null);
   const [mapCenterOverride, setMapCenterOverride] = useState(null);
   const [lightboxData, setLightboxData] = useState(null);
@@ -213,15 +200,24 @@ export default function App() {
     }
   };
 
-  // Save State to LocalStorage
-  useEffect(() => {
+  const fetchVisits = async () => {
     try {
-      localStorage.setItem('cafeVisits', JSON.stringify(visits));
-    } catch (e) {
-      console.error("Failed to save to LocalStorage (Quota exceeded):", e);
-      alert("⚠️ Storage Full!\nYour cafe visit has been saved for this session, but the photos are too large to store permanently in this browser.\nWe recommend using smaller images or clearing storage space.");
+      const response = await fetch(`${API_BASE}/api/visits`);
+      if (response.ok) {
+        const data = await response.json();
+        setVisits(data);
+      } else {
+        console.error('Failed to fetch visits');
+      }
+    } catch (error) {
+      console.error('Error fetching visits:', error);
     }
-  }, [visits]);
+  };
+
+  // Fetch visits on mount and when currentUser changes
+  useEffect(() => {
+    fetchVisits();
+  }, [currentUser]);
 
   useEffect(() => {
     if (currentUser) {
@@ -232,7 +228,7 @@ export default function App() {
   }, [currentUser]);
 
   // Handle Authentication (Tikum Member - Admin Access)
-  const handleAuthSubmit = (e) => {
+  const handleAuthSubmit = async (e) => {
     e.preventDefault();
     setAuthError('');
     if (!loginEmail || !loginPassword) return;
@@ -242,37 +238,52 @@ export default function App() {
         setAuthError('Please enter your name.');
         return;
       }
-      // Check if email already exists
-      const exists = users.some(u => u.email.toLowerCase() === loginEmail.toLowerCase());
-      if (exists) {
-        setAuthError('An account with this email already exists.');
-        return;
+      try {
+        const response = await fetch(`${API_BASE}/api/auth/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: loginEmail.toLowerCase(),
+            password: loginPassword,
+            name: registerName,
+            role: 'admin'
+          })
+        });
+        const data = await response.json();
+        if (response.ok) {
+          setCurrentUser(data);
+          setLoginEmail('');
+          setLoginPassword('');
+          setRegisterName('');
+        } else {
+          setAuthError(data.error || 'Registration failed.');
+        }
+      } catch (error) {
+        console.error('Registration error:', error);
+        setAuthError('Failed to connect to the server.');
       }
-
-      const newUser = {
-        email: loginEmail.toLowerCase(),
-        password: loginPassword,
-        name: registerName,
-        role: 'admin'
-      };
-
-      const updatedUsers = [...users, newUser];
-      setUsers(updatedUsers);
-      localStorage.setItem('tikum_users', JSON.stringify(updatedUsers));
-      setCurrentUser(newUser);
-
-      setLoginEmail('');
-      setLoginPassword('');
-      setRegisterName('');
     } else {
       // Login mode
-      const foundUser = users.find(u => u.email.toLowerCase() === loginEmail.toLowerCase() && u.password === loginPassword);
-      if (foundUser) {
-        setCurrentUser(foundUser);
-        setLoginEmail('');
-        setLoginPassword('');
-      } else {
-        setAuthError('Incorrect email or password. Hint: Use member@tikum.com / member123');
+      try {
+        const response = await fetch(`${API_BASE}/api/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: loginEmail.toLowerCase(),
+            password: loginPassword
+          })
+        });
+        const data = await response.json();
+        if (response.ok) {
+          setCurrentUser(data);
+          setLoginEmail('');
+          setLoginPassword('');
+        } else {
+          setAuthError(data.error || 'Incorrect email or password.');
+        }
+      } catch (error) {
+        console.error('Login error:', error);
+        setAuthError('Failed to connect to the server.');
       }
     }
   };
@@ -584,7 +595,7 @@ export default function App() {
         {activeTab === 'add' && (
           currentUser.role === 'guest'
             ? <LockedGuestView onLogout={handleLogout} />
-            : <AddVisitView setVisits={setVisits} currentUser={currentUser} setActiveTab={setActiveTab} />
+            : <AddVisitView onVisitAdded={fetchVisits} currentUser={currentUser} setActiveTab={setActiveTab} />
         )}
       </main>
 
@@ -1003,7 +1014,7 @@ function LockedGuestView({ onLogout }) {
   );
 }
 
-function AddVisitView({ setVisits, currentUser, setActiveTab }) {
+function AddVisitView({ onVisitAdded, currentUser, setActiveTab }) {
   const [name, setName] = useState('');
   const [rating, setRating] = useState(0);
   const [review, setReview] = useState('');
@@ -1162,7 +1173,7 @@ function AddVisitView({ setVisits, currentUser, setActiveTab }) {
   };
 
   // Submit Visit Form
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!name || rating === 0) return;
 
@@ -1170,8 +1181,7 @@ function AddVisitView({ setVisits, currentUser, setActiveTab }) {
     const finalLat = lat || 40.7128 + (Math.random() - 0.5) * 0.05;
     const finalLng = lng || -74.0060 + (Math.random() - 0.5) * 0.05;
 
-    const newVisit = {
-      id: Date.now().toString(),
+    const payload = {
       name,
       rating,
       review,
@@ -1180,8 +1190,7 @@ function AddVisitView({ setVisits, currentUser, setActiveTab }) {
       menuPhoto: menuPhotos,
       lat: parseFloat(finalLat),
       lng: parseFloat(finalLng),
-      user: currentUser.name,
-      date: new Date().toISOString(),
+      userEmail: currentUser.email,
       orderedItems,
       priceSpent,
       foodPriceRange,
@@ -1189,8 +1198,24 @@ function AddVisitView({ setVisits, currentUser, setActiveTab }) {
       address: address || 'Cozy Corner, New York'
     };
 
-    setVisits((prev) => [newVisit, ...prev]);
-    setActiveTab('feed');
+    try {
+      const response = await fetch(`${API_BASE}/api/visits`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (response.ok) {
+        await onVisitAdded();
+        setActiveTab('feed');
+      } else {
+        const data = await response.json();
+        alert('Failed to save visit: ' + (data.error || 'Server error'));
+      }
+    } catch (error) {
+      console.error('Error saving visit:', error);
+      alert('Error connecting to the server.');
+    }
   };
 
   return (
