@@ -1,10 +1,13 @@
-name: Deploy Vue App
+name: GA
 
 on:
   push:
     branches:
       - main
-
+      
+- name: Check SSH key from GitHub secret
+        run: |
+          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > /tmp/deploy_key
 jobs:
   deploy:
     runs-on: ubuntu-latest
