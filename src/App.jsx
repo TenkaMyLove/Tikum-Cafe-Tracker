@@ -1611,7 +1611,7 @@ function VisitDetailModal({ visit, onClose, onNavigateToMap, onOpenLightbox }) {
                     {visit.address}
                   </span>
                   <code style={{ fontSize: '0.75rem', color: 'var(--primary)', background: 'rgba(139, 92, 246, 0.08)', padding: '0.15rem 0.45rem', borderRadius: '4px', border: '1px solid rgba(139, 92, 246, 0.15)', fontFamily: 'monospace' }}>
-                    {visit.lat.toFixed(5)}, {visit.lng.toFixed(5)}
+                    {parseFloat(visit.lat).toFixed(5)}, {parseFloat(visit.lng).toFixed(5)}
                   </code>
                 </div>
                 <span style={{ fontSize: '0.8rem', color: 'var(--primary)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
@@ -1706,7 +1706,7 @@ function VisitDetailModal({ visit, onClose, onNavigateToMap, onOpenLightbox }) {
             >
               <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginBottom: '0.15rem' }}>GPS Coordinates</div>
               <code style={{ fontSize: '0.75rem', color: 'var(--primary)', fontFamily: 'monospace' }}>
-                {visit.lat.toFixed(6)}, {visit.lng.toFixed(6)}
+                {parseFloat(visit.lat).toFixed(6)}, {parseFloat(visit.lng).toFixed(6)}
               </code>
             </div>
           </div>
