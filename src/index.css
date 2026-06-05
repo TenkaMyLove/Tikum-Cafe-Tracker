@@ -489,6 +489,8 @@ body {
   display: flex;
   align-items: center;
   gap: 0.35rem;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .card-badge.rating {

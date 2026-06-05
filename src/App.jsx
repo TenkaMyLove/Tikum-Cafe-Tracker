@@ -180,6 +180,31 @@ export default function App() {
   const [selectedVisit, setSelectedVisit] = useState(null);
   const [mapCenterOverride, setMapCenterOverride] = useState(null);
   const [lightboxData, setLightboxData] = useState(null);
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [isInstallable, setIsInstallable] = useState(false);
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setIsInstallable(true);
+    };
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handleInstallPWA = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      console.log('User accepted the PWA install prompt');
+    }
+    setDeferredPrompt(null);
+    setIsInstallable(false);
+  };
 
   const handleOpenLightbox = (photos, title, initialIndex = 0) => {
     const photoArray = ensureArray(photos);
@@ -325,7 +350,7 @@ export default function App() {
           <div className="auth-header">
             <div className="flex-center" style={{ gap: '0.5rem', marginBottom: '0.5rem' }}>
               <Icon name="coffee" className="icon" style={{ width: '32px', height: '32px', color: 'var(--primary)' }} />
-              <span style={{ fontSize: '1.75rem', fontWeight: 800, fontFamily: 'Outfit', letterSpacing: '-0.5px' }}>Cafe Journal</span>
+              <span style={{ fontSize: '1.75rem', fontWeight: 800, fontFamily: 'Outfit', letterSpacing: '-0.5px' }}>Tikum Cafe Tracker</span>
             </div>
             <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#fff', marginBottom: '0.25rem' }}>Select Access Role</h3>
             <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
@@ -483,7 +508,7 @@ export default function App() {
         <div>
           <div className="brand">
             <Icon name="coffee" style={{ width: '28px', height: '28px', color: 'var(--primary)' }} />
-            <span>Cafe Journal</span>
+            <span>Tikum Cafe Tracker</span>
           </div>
           
           <nav className="nav-links">
@@ -508,6 +533,16 @@ export default function App() {
               <Icon name="add" />
               <span>Log Visit</span>
             </button>
+            {isInstallable && (
+              <button 
+                className="nav-item install-nav-btn" 
+                onClick={handleInstallPWA}
+                style={{ background: 'rgba(139, 92, 246, 0.08)', border: '1px solid rgba(139, 92, 246, 0.2)', color: 'var(--primary)', marginTop: '0.5rem' }}
+              >
+                <span style={{ fontSize: '18px', marginRight: '8px' }}>📱</span>
+                <span>Install App</span>
+              </button>
+            )}
           </nav>
         </div>
 
@@ -531,7 +566,7 @@ export default function App() {
       {viewport.isMobileLandscape && (
         <aside className="pwa-landscape-sidebar">
           <div className="pwa-sidebar-top">
-            <div className="pwa-brand" title="Cafe Journal">
+            <div className="pwa-brand" title="Tikum Cafe Tracker">
               <Icon name="coffee" style={{ width: '22px', height: '22px', color: 'var(--primary)' }} />
             </div>
             
@@ -576,15 +611,27 @@ export default function App() {
         <header className="mobile-header">
           <div className="brand" style={{ marginBottom: 0 }}>
             <Icon name="coffee" style={{ width: '24px', height: '24px', color: 'var(--primary)' }} />
-            <span>Cafe Journal</span>
+            <span>Tikum Cafe Tracker</span>
           </div>
-          <button 
-            className="nav-item" 
-            style={{ padding: '0.5rem', minWidth: 'auto', background: 'transparent' }} 
-            onClick={handleLogout}
-          >
-            <Icon name="logout" style={{ width: '20px', height: '20px' }} />
-          </button>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            {isInstallable && (
+              <button 
+                className="nav-item" 
+                style={{ padding: '0.5rem', minWidth: 'auto', background: 'rgba(139, 92, 246, 0.15)', border: '1px solid rgba(139, 92, 246, 0.3)' }} 
+                onClick={handleInstallPWA}
+                title="Install App"
+              >
+                <span style={{ fontSize: '1.1rem' }}>📱</span>
+              </button>
+            )}
+            <button 
+              className="nav-item" 
+              style={{ padding: '0.5rem', minWidth: 'auto', background: 'transparent' }} 
+              onClick={handleLogout}
+            >
+              <Icon name="logout" style={{ width: '20px', height: '20px' }} />
+            </button>
+          </div>
         </header>
       )}
 
@@ -1614,7 +1661,7 @@ function VisitDetailModal({ visit, onClose, onNavigateToMap, onOpenLightbox }) {
                     {parseFloat(visit.lat).toFixed(5)}, {parseFloat(visit.lng).toFixed(5)}
                   </code>
                 </div>
-                <span style={{ fontSize: '0.8rem', color: 'var(--primary)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                <span style={{ fontSize: '0.8rem', color: 'var(--primary)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.25rem', flexShrink: 0, whiteSpace: 'nowrap' }}>
                   Show on Map 🗺️
                 </span>
               </div>
