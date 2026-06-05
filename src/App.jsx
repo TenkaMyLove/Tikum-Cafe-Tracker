@@ -769,8 +769,8 @@ function MapView({ visits, mapCenterOverride, setMapCenterOverride }) {
     const map = L.map(containerRef.current).setView([centerLat, centerLng], 12);
     mapRef.current = map;
 
-    // Add ultra-sleek dark map tiles
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png', {
+    // Add beautiful clean Voyager map tiles
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
         subdomains: 'abcd',
         maxZoom: 20
@@ -1048,7 +1048,7 @@ function AddVisitView({ onVisitAdded, currentUser, setActiveTab }) {
     const map = L.map(miniContainerRef.current).setView([initialLat, initialLng], 12);
     miniMapRef.current = map;
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png', {
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
         subdomains: 'abcd',
         maxZoom: 20
@@ -1119,6 +1119,38 @@ function AddVisitView({ onVisitAdded, currentUser, setActiveTab }) {
         setLocationStatus('Unable to retrieve location (we will fallback to default NYC coords)');
       }
     );
+  };
+
+  const handleCoordinatesChange = (latVal, lngVal) => {
+    const nextLat = parseFloat(latVal);
+    const nextLng = parseFloat(lngVal);
+    
+    if (!isNaN(nextLat)) setLat(latVal);
+    if (!isNaN(nextLng)) setLng(lngVal);
+
+    if (!isNaN(nextLat) && !isNaN(nextLng)) {
+      if (miniMarkerRef.current && miniMapRef.current) {
+        miniMarkerRef.current.setLatLng([nextLat, nextLng]);
+        miniMapRef.current.panTo([nextLat, nextLng]);
+      }
+    }
+  };
+
+  const handleCoordsPaste = (val) => {
+    const parts = val.split(/[\s,]+/);
+    if (parts.length >= 2) {
+      const parsedLat = parseFloat(parts[0]);
+      const parsedLng = parseFloat(parts[1]);
+      if (!isNaN(parsedLat) && !isNaN(parsedLng)) {
+        setLat(parsedLat);
+        setLng(parsedLng);
+        if (miniMarkerRef.current && miniMapRef.current) {
+          miniMarkerRef.current.setLatLng([parsedLat, parsedLng]);
+          miniMapRef.current.flyTo([parsedLat, parsedLng], 15);
+        }
+        setLocationStatus('Coordinates parsed successfully! ✓');
+      }
+    }
   };
 
   // Handle Cover Photo Loading
@@ -1445,25 +1477,56 @@ function AddVisitView({ onVisitAdded, currentUser, setActiveTab }) {
             <div className="form-group" style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '1.25rem', marginTop: '1.5rem' }}>
               <label style={{ marginBottom: '0.25rem' }}>Pinpoint Location / Drop Map Pin</label>
               <p style={{ fontSize: '0.8rem', color: 'var(--text-dim)', marginBottom: '1rem' }}>
-                Drop a pin on the map to share where the cafe is. You can search using "Get Coordinates", OR click/drag directly on the map below!
+                Enter coordinates manually, drop a pin by clicking/dragging on the map below, or click "Get GPS Location"!
               </p>
+
+              {/* Paste coordinates parser */}
+              <div className="form-group" style={{ marginBottom: '1rem' }}>
+                <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Quick Paste Coordinates (e.g. from Google Maps)</label>
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  placeholder="Paste coordinates here (e.g., -6.2088, 106.8456)" 
+                  onChange={(e) => handleCoordsPaste(e.target.value)}
+                />
+              </div>
               
-              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
-                <button 
-                  type="button" 
-                  className="btn-secondary" 
-                  style={{ width: 'auto', display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 1.1rem' }}
-                  onClick={handleGetLocation}
-                >
-                  <Icon name="location" style={{ width: '16px', height: '16px' }} />
-                  <span>Get Coordinates</span>
-                </button>
-                
-                {(lat || lng) && (
-                  <div style={{ display: 'flex', alignItems: 'center', fontSize: '0.8rem', color: 'var(--primary)', fontWeight: 600, background: 'rgba(139, 92, 246, 0.05)', padding: '0.5rem 0.85rem', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(139, 92, 246, 0.15)' }}>
-                    <code>📍 {parseFloat(lat).toFixed(5)}, {parseFloat(lng).toFixed(5)}</code>
-                  </div>
-                )}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '0.75rem', marginBottom: '1rem' }}>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Latitude</label>
+                  <input 
+                    type="number" 
+                    step="any"
+                    className="form-input" 
+                    placeholder="Latitude" 
+                    value={lat}
+                    onChange={(e) => handleCoordinatesChange(e.target.value, lng)}
+                    required
+                  />
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Longitude</label>
+                  <input 
+                    type="number" 
+                    step="any"
+                    className="form-input" 
+                    placeholder="Longitude" 
+                    value={lng}
+                    onChange={(e) => handleCoordinatesChange(lat, e.target.value)}
+                    required
+                  />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                  <button 
+                    type="button" 
+                    className="btn-secondary" 
+                    style={{ width: 'auto', display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.85rem 1.1rem' }}
+                    onClick={handleGetLocation}
+                  >
+                    <Icon name="location" style={{ width: '16px', height: '16px' }} />
+                    <span>GPS</span>
+                  </button>
+                </div>
               </div>
 
               <div ref={miniContainerRef} className="mini-map-viewport"></div>
