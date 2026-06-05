@@ -24,4 +24,4 @@ jobs:
               -i ~/.ssh/deploy_key \
               -p "${{ secrets.VPS_PORT }}" \
               "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
-              "cd /var/www/tct/Tikum-Cafe-Tracker && git pull origin main && npm ci && npm run build && rm -rf /var/www/html/* && cp -r dist/* /var/www/html/ && service nginx reload"
+              "cd /var/www/tct/Tikum-Cafe-Tracker && git pull origin main && npm ci && npm run build && rm -rf /var/www/html/* && cp -r dist/* /var/www/html/ && service nginx reload && pm2 restart tct-backend"
