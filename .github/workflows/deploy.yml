@@ -10,24 +10,26 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Check SSH key from GitHub secret
-        run: |
-          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > /tmp/deploy_key
-          chmod 600 /tmp/deploy_key
-          ssh-keygen -lf /tmp/deploy_key
-
       - name: Deploy to VPS
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          port: ${{ secrets.VPS_PORT }}
-          script: |
-            cd /var/www/tct/Tikum-Cafe-Tracker
-            git pull origin main
-            npm ci
-            npm run build
-            rm -rf /var/www/html/*
-            cp -r dist/* /var/www/html/
-            service nginx reload
+        run: |
+          mkdir -p ~/.ssh
+
+          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+          echo "GitHub SSH key fingerprint:"
+          ssh-keygen -lf ~/.ssh/deploy_key
+
+          ssh -o StrictHostKeyChecking=no \
+              -o IdentitiesOnly=yes \
+              -i ~/.ssh/deploy_key \
+              -p "${{ secrets.VPS_PORT }}" \
+              "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" << 'EOF'
+                cd /var/www/tct/Tikum-Cafe-Tracker
+                git pull origin main
+                npm ci
+                npm run build
+                rm -rf /var/www/html/*
+                cp -r dist/* /var/www/html/
+                service nginx reload
+          EOF
