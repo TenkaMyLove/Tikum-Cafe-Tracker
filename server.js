@@ -229,6 +229,156 @@ app.post('/api/visits', async (req, res) => {
   }
 });
 
+// 2b. Update a Cafe Visit (Optimized Photo Management)
+app.put('/api/visits/:id', async (req, res) => {
+  const visitId = req.params.id;
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    const {
+      name, rating, review, lat, lng, address,
+      orderedItems, priceSpent, foodPriceRange, beveragePriceRange,
+      userEmail, photo, boughtPhoto, menuPhoto
+    } = req.body;
+
+    // 1. Verify owner
+    const [ownerCheck] = await connection.query(
+      'SELECT user_email FROM visits WHERE id = ?',
+      [visitId]
+    );
+
+    if (ownerCheck.length === 0) {
+      await connection.rollback();
+      return res.status(404).json({ error: 'Visit not found' });
+    }
+
+    if (ownerCheck[0].user_email !== userEmail) {
+      await connection.rollback();
+      return res.status(403).json({ error: 'Unauthorized to edit this visit' });
+    }
+
+    // 2. Update metadata in visits
+    const updateVisitQuery = `
+      UPDATE visits SET 
+        name = ?, rating = ?, review = ?, lat = ?, lng = ?, address = ?,
+        ordered_items = ?, price_spent = ?, food_price_range = ?, beverage_price_range = ?
+      WHERE id = ?
+    `;
+    await connection.query(updateVisitQuery, [
+      name, rating, review, lat, lng, address,
+      orderedItems, priceSpent, foodPriceRange, beveragePriceRange, visitId
+    ]);
+
+    // 3. Fetch existing photos from DB
+    const [existingPhotos] = await connection.query(
+      'SELECT id, photo_url, photo_type FROM photos WHERE visit_id = ?',
+      [visitId]
+    );
+
+    const existingCover = existingPhotos.find(p => p.photo_type === 'cover');
+    const existingBought = existingPhotos.filter(p => p.photo_type === 'bought');
+    const existingMenu = existingPhotos.filter(p => p.photo_type === 'menu');
+
+    // A. Update Cover Photo
+    if (photo !== (existingCover ? existingCover.photo_url : null)) {
+      // Delete old cover
+      if (existingCover) {
+        await connection.query('DELETE FROM photos WHERE id = ?', [existingCover.id]);
+      }
+      // Insert new cover if provided
+      if (photo) {
+        await connection.query(
+          'INSERT INTO photos (visit_id, photo_url, photo_type) VALUES (?, ?, "cover")',
+          [visitId, photo]
+        );
+      }
+    }
+
+    // B. Update Bought Photos (Array)
+    const submittedBought = Array.isArray(boughtPhoto) ? boughtPhoto : [];
+    // Delete any old bought photos not present in the submitted array
+    const boughtToDelete = existingBought.filter(p => !submittedBought.includes(p.photo_url));
+    for (const p of boughtToDelete) {
+      await connection.query('DELETE FROM photos WHERE id = ?', [p.id]);
+    }
+    // Insert any new bought photos not present in the DB
+    const boughtToInsert = submittedBought.filter(pUrl => !existingBought.some(ep => ep.photo_url === pUrl));
+    for (const pUrl of boughtToInsert) {
+      await connection.query(
+        'INSERT INTO photos (visit_id, photo_url, photo_type) VALUES (?, ?, "bought")',
+        [visitId, pUrl]
+      );
+    }
+
+    // C. Update Menu Photos (Array)
+    const submittedMenu = Array.isArray(menuPhoto) ? menuPhoto : [];
+    // Delete any old menu photos not present in the submitted array
+    const menuToDelete = existingMenu.filter(p => !submittedMenu.includes(p.photo_url));
+    for (const p of menuToDelete) {
+      await connection.query('DELETE FROM photos WHERE id = ?', [p.id]);
+    }
+    // Insert any new menu photos not present in the DB
+    const menuToInsert = submittedMenu.filter(pUrl => !existingMenu.some(ep => ep.photo_url === pUrl));
+    for (const pUrl of menuToInsert) {
+      await connection.query(
+        'INSERT INTO photos (visit_id, photo_url, photo_type) VALUES (?, ?, "menu")',
+        [visitId, pUrl]
+      );
+    }
+
+    await connection.commit();
+    res.json({ success: true });
+  } catch (error) {
+    await connection.rollback();
+    console.error('Transaction rolled back. Error updating visit:', error);
+    res.status(500).json({ error: 'Failed to update visit and photos' });
+  } finally {
+    connection.release();
+  }
+});
+
+// 2c. Delete a Cafe Visit
+app.delete('/api/visits/:id', async (req, res) => {
+  const visitId = req.params.id;
+  const userEmail = req.headers['x-user-email'] || req.query.userEmail;
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    // 1. Verify owner
+    const [ownerCheck] = await connection.query(
+      'SELECT user_email FROM visits WHERE id = ?',
+      [visitId]
+    );
+
+    if (ownerCheck.length === 0) {
+      await connection.rollback();
+      return res.status(404).json({ error: 'Visit not found' });
+    }
+
+    if (ownerCheck[0].user_email !== userEmail) {
+      await connection.rollback();
+      return res.status(403).json({ error: 'Unauthorized to delete this visit' });
+    }
+
+    // 2. Delete associated photos
+    await connection.query('DELETE FROM photos WHERE visit_id = ?', [visitId]);
+
+    // 3. Delete visit
+    await connection.query('DELETE FROM visits WHERE id = ?', [visitId]);
+
+    await connection.commit();
+    res.json({ success: true });
+  } catch (error) {
+    await connection.rollback();
+    console.error('Transaction rolled back. Error deleting visit:', error);
+    res.status(500).json({ error: 'Failed to delete visit' });
+  } finally {
+    connection.release();
+  }
+});
+
 // 3. User Login
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;

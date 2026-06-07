@@ -232,6 +232,7 @@ export default function App() {
       if (response.ok) {
         const data = await response.json();
         setVisits(data);
+        return data;
       } else {
         console.error('Failed to fetch visits');
       }
@@ -673,6 +674,19 @@ export default function App() {
             setRevisitPreFill(preFillData);
             setActiveTab('add');
             setSelectedVisit(null);
+          }}
+          onVisitDeleted={async () => {
+            setSelectedVisit(null);
+            await fetchVisits();
+          }}
+          onVisitUpdated={async (updatedVisitId) => {
+            const updatedVisits = await fetchVisits();
+            if (updatedVisits) {
+              const match = updatedVisits.find(v => v.id === updatedVisitId);
+              if (match) {
+                setSelectedVisit(match);
+              }
+            }
           }}
         />
       )}
@@ -1650,14 +1664,55 @@ function AddVisitView({ onVisitAdded, currentUser, setActiveTab, revisitPreFill,
 }
 // --- VISIT DETAIL MODAL OVERLAY ---
 
-function VisitDetailModal({ visit, visits, currentUser, onClose, onNavigateToMap, onOpenLightbox, onAddRevisit }) {
+function VisitDetailModal({ visit, visits, currentUser, onClose, onNavigateToMap, onOpenLightbox, onAddRevisit, onVisitDeleted, onVisitUpdated }) {
   const [currentVisit, setCurrentVisit] = useState(visit);
   const [isSessionDropdownOpen, setIsSessionDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
 
+  // Edit states
+  const [isEditing, setIsEditing] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editRating, setEditRating] = useState(1);
+  const [editReview, setEditReview] = useState('');
+  const [editLat, setEditLat] = useState('');
+  const [editLng, setEditLng] = useState('');
+  const [editAddress, setEditAddress] = useState('');
+  const [editOrderedItems, setEditOrderedItems] = useState('');
+  const [editPriceSpent, setEditPriceSpent] = useState('');
+  const [editFoodPriceRange, setEditFoodPriceRange] = useState(1);
+  const [editBeveragePriceRange, setEditBeveragePriceRange] = useState(1);
+  const [editPhoto, setEditPhoto] = useState(null);
+  const [editBoughtPhotos, setEditBoughtPhotos] = useState([]);
+  const [editMenuPhotos, setEditMenuPhotos] = useState([]);
+  const [isSaving, setIsSaving] = useState(false);
+  const [editError, setEditError] = useState('');
+
+  // Refs for file inputs
+  const editCoverInputRef = useRef(null);
+  const editBoughtInputRef = useRef(null);
+  const editMenuInputRef = useRef(null);
+
   useEffect(() => {
     setCurrentVisit(visit);
   }, [visit]);
+
+  useEffect(() => {
+    if (currentVisit) {
+      setEditName(currentVisit.name || '');
+      setEditRating(currentVisit.rating || 1);
+      setEditReview(currentVisit.review || '');
+      setEditLat(currentVisit.lat || '');
+      setEditLng(currentVisit.lng || '');
+      setEditAddress(currentVisit.address || '');
+      setEditOrderedItems(currentVisit.orderedItems || '');
+      setEditPriceSpent(currentVisit.priceSpent ? String(Math.round(currentVisit.priceSpent)) : '');
+      setEditFoodPriceRange(currentVisit.foodPriceRange || 1);
+      setEditBeveragePriceRange(currentVisit.beveragePriceRange || 1);
+      setEditPhoto(currentVisit.photo || null);
+      setEditBoughtPhotos(ensureArray(currentVisit.boughtPhoto));
+      setEditMenuPhotos(ensureArray(currentVisit.menuPhoto));
+    }
+  }, [currentVisit, isEditing]);
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -1699,6 +1754,415 @@ function VisitDetailModal({ visit, visits, currentUser, onClose, onNavigateToMap
       beveragePriceRange: currentVisit.beveragePriceRange
     });
   };
+
+  const handlePriceSelect = (val, currentEncodedVal, setEncodedVal) => {
+    const { min, max } = decodeRange(currentEncodedVal);
+    if (min === max) {
+      if (val < min) {
+        setEncodedVal(encodeRange(val, min));
+      } else if (val > min) {
+        setEncodedVal(encodeRange(min, val));
+      } else {
+        setEncodedVal(encodeRange(val, val));
+      }
+    } else {
+      setEncodedVal(encodeRange(val, val));
+    }
+  };
+
+  const handleDeleteLog = async () => {
+    if (!window.confirm("Are you sure you want to delete this visit log? This cannot be undone.")) {
+      return;
+    }
+    try {
+      const response = await fetch(`${API_BASE}/api/visits/${currentVisit.id}`, {
+        method: 'DELETE',
+        headers: {
+          'x-user-email': currentUser.email
+        }
+      });
+      if (response.ok) {
+        onVisitDeleted && onVisitDeleted();
+      } else {
+        const errData = await response.json();
+        alert('Failed to delete log: ' + (errData.error || 'Server error'));
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Network error deleting log.');
+    }
+  };
+
+  const handleSaveEdit = async (e) => {
+    e.preventDefault();
+    if (!editName || editRating === 0) return;
+    setIsSaving(true);
+    setEditError('');
+
+    const payload = {
+      name: editName,
+      rating: editRating,
+      review: editReview,
+      photo: editPhoto,
+      boughtPhoto: editBoughtPhotos,
+      menuPhoto: editMenuPhotos,
+      lat: parseFloat(editLat),
+      lng: parseFloat(editLng),
+      address: editAddress,
+      orderedItems: editOrderedItems,
+      priceSpent: editPriceSpent ? parseFloat(String(editPriceSpent).replace(/[^0-9]/g, '')) : null,
+      foodPriceRange: editFoodPriceRange,
+      beveragePriceRange: editBeveragePriceRange,
+      userEmail: currentUser.email
+    };
+
+    try {
+      const response = await fetch(`${API_BASE}/api/visits/${currentVisit.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (response.ok) {
+        setIsEditing(false);
+        onVisitUpdated && onVisitUpdated(currentVisit.id);
+      } else {
+        const errData = await response.json();
+        setEditError(errData.error || 'Server error saving edits');
+      }
+    } catch (err) {
+      console.error(err);
+      setEditError('Network error saving edits.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  if (isEditing) {
+    return (
+      <div className="modal-backdrop" onClick={onClose}>
+        <div className="glass modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '650px', width: '90%' }}>
+          <div className="modal-body" style={{ maxHeight: '85vh', overflowY: 'auto', padding: '1.5rem' }}>
+            <h2 style={{ fontFamily: 'Outfit', fontSize: '1.6rem', marginBottom: '1.25rem', color: 'var(--text-main)' }}>Edit Visit Log</h2>
+            
+            {editError && (
+              <div style={{ color: '#ef4444', background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.2)', padding: '0.75rem', borderRadius: 'var(--radius-md)', marginBottom: '1rem', fontSize: '0.9rem' }}>
+                ⚠️ {editError}
+              </div>
+            )}
+
+            <form onSubmit={handleSaveEdit} style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
+              <div className="form-group">
+                <label style={{ fontSize: '0.85rem', color: 'var(--text-dim)', fontWeight: 600, display: 'block', marginBottom: '0.35rem' }}>Cafe Name</label>
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  required
+                  style={{ width: '100%', padding: '0.75rem', borderRadius: 'var(--radius-md)', background: 'rgba(255, 255, 255, 0.03)', border: '1px solid var(--border-color)', color: '#fff' }}
+                />
+              </div>
+
+              <div className="form-group">
+                <label style={{ fontSize: '0.85rem', color: 'var(--text-dim)', fontWeight: 600, display: 'block', marginBottom: '0.35rem' }}>Coffee Rating</label>
+                <div className="rating-container" style={{ display: 'flex', gap: '0.35rem' }}>
+                  {[1, 2, 3, 4, 5].map((val) => (
+                    <button
+                      key={val}
+                      type="button"
+                      className={`rating-star-btn ${val <= editRating ? 'active' : ''}`}
+                      onClick={() => setEditRating(val)}
+                      style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', opacity: val <= editRating ? 1 : 0.25, transition: 'var(--transition)' }}
+                    >
+                      ☕
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label style={{ fontSize: '0.85rem', color: 'var(--text-dim)', fontWeight: 600, display: 'block', marginBottom: '0.35rem' }}>Location Address</label>
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  value={editAddress}
+                  onChange={(e) => setEditAddress(e.target.value)}
+                  required
+                  style={{ width: '100%', padding: '0.75rem', borderRadius: 'var(--radius-md)', background: 'rgba(255, 255, 255, 0.03)', border: '1px solid var(--border-color)', color: '#fff' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.75rem' }}>
+                <div className="form-group" style={{ flex: 1 }}>
+                  <label style={{ fontSize: '0.85rem', color: 'var(--text-dim)', fontWeight: 600, display: 'block', marginBottom: '0.35rem' }}>Latitude</label>
+                  <input 
+                    type="number" 
+                    step="any"
+                    className="form-input" 
+                    value={editLat}
+                    onChange={(e) => setEditLat(e.target.value)}
+                    required
+                    style={{ width: '100%', padding: '0.75rem', borderRadius: 'var(--radius-md)', background: 'rgba(255, 255, 255, 0.03)', border: '1px solid var(--border-color)', color: '#fff' }}
+                  />
+                </div>
+                <div className="form-group" style={{ flex: 1 }}>
+                  <label style={{ fontSize: '0.85rem', color: 'var(--text-dim)', fontWeight: 600, display: 'block', marginBottom: '0.35rem' }}>Longitude</label>
+                  <input 
+                    type="number" 
+                    step="any"
+                    className="form-input" 
+                    value={editLng}
+                    onChange={(e) => setEditLng(e.target.value)}
+                    required
+                    style={{ width: '100%', padding: '0.75rem', borderRadius: 'var(--radius-md)', background: 'rgba(255, 255, 255, 0.03)', border: '1px solid var(--border-color)', color: '#fff' }}
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label style={{ fontSize: '0.85rem', color: 'var(--text-dim)', fontWeight: 600, display: 'block', marginBottom: '0.35rem' }}>Items Ordered</label>
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  placeholder="e.g. Matcha Latte, Cinnamon Roll"
+                  value={editOrderedItems}
+                  onChange={(e) => setEditOrderedItems(e.target.value)}
+                  style={{ width: '100%', padding: '0.75rem', borderRadius: 'var(--radius-md)', background: 'rgba(255, 255, 255, 0.03)', border: '1px solid var(--border-color)', color: '#fff' }}
+                />
+              </div>
+
+              <div className="form-group">
+                <label style={{ fontSize: '0.85rem', color: 'var(--text-dim)', fontWeight: 600, display: 'block', marginBottom: '0.35rem' }}>Total Spent (IDR)</label>
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  placeholder="e.g. 75.000"
+                  value={editPriceSpent}
+                  onChange={(e) => {
+                    const cleanVal = e.target.value.replace(/[^0-9]/g, '');
+                    setEditPriceSpent(cleanVal ? Number(cleanVal).toLocaleString('id-ID') : '');
+                  }}
+                  style={{ width: '100%', padding: '0.75rem', borderRadius: 'var(--radius-md)', background: 'rgba(255, 255, 255, 0.03)', border: '1px solid var(--border-color)', color: '#fff' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                <div className="form-group" style={{ flex: 1, minWidth: '200px' }}>
+                  <label style={{ fontSize: '0.85rem', color: 'var(--text-dim)', fontWeight: 600, display: 'block', marginBottom: '0.35rem' }}>Food Price Range</label>
+                  <div className="price-range-container" style={{ display: 'flex', gap: '0.25rem' }}>
+                    {[1, 2, 3, 4, 5].map((val) => {
+                      const { min, max } = decodeRange(editFoodPriceRange);
+                      const isActive = val >= min && val <= max;
+                      return (
+                        <button
+                          key={val}
+                          type="button"
+                          className={`price-range-btn food ${isActive ? 'active' : ''}`}
+                          onClick={() => handlePriceSelect(val, editFoodPriceRange, setEditFoodPriceRange)}
+                          style={{ flex: 1, padding: '0.45rem 0.25rem', fontSize: '0.75rem', borderRadius: '4px', cursor: 'pointer', background: isActive ? 'var(--accent)' : 'rgba(255,255,255,0.03)', border: '1px solid var(--border-color)', color: isActive ? '#000' : 'var(--text-muted)', fontWeight: 700 }}
+                        >
+                          {val === 5 ? '$$$$$+' : '$'.repeat(val)}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="form-group" style={{ flex: 1, minWidth: '200px' }}>
+                  <label style={{ fontSize: '0.85rem', color: 'var(--text-dim)', fontWeight: 600, display: 'block', marginBottom: '0.35rem' }}>Beverages Price Range</label>
+                  <div className="price-range-container" style={{ display: 'flex', gap: '0.25rem' }}>
+                    {[1, 2, 3, 4, 5].map((val) => {
+                      const { min, max } = decodeRange(editBeveragePriceRange);
+                      const isActive = val >= min && val <= max;
+                      return (
+                        <button
+                          key={val}
+                          type="button"
+                          className={`price-range-btn ${isActive ? 'active' : ''}`}
+                          onClick={() => handlePriceSelect(val, editBeveragePriceRange, setEditBeveragePriceRange)}
+                          style={{ flex: 1, padding: '0.45rem 0.25rem', fontSize: '0.75rem', borderRadius: '4px', cursor: 'pointer', background: isActive ? 'var(--primary)' : 'rgba(255,255,255,0.03)', border: '1px solid var(--border-color)', color: isActive ? '#fff' : 'var(--text-muted)', fontWeight: 700 }}
+                        >
+                          {val === 5 ? '$$$$$+' : '$'.repeat(val)}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label style={{ fontSize: '0.85rem', color: 'var(--text-dim)', fontWeight: 600, display: 'block', marginBottom: '0.35rem' }}>Thoughts & Experience</label>
+                <textarea 
+                  className="form-input" 
+                  rows={4}
+                  value={editReview}
+                  onChange={(e) => setEditReview(e.target.value)}
+                  style={{ width: '100%', padding: '0.75rem', borderRadius: 'var(--radius-md)', background: 'rgba(255, 255, 255, 0.03)', border: '1px solid var(--border-color)', color: '#fff', resize: 'vertical' }}
+                />
+              </div>
+
+              {/* Cover Photo */}
+              <div className="form-group">
+                <label style={{ fontSize: '0.85rem', color: 'var(--text-dim)', fontWeight: 600, display: 'block', marginBottom: '0.35rem' }}>Cover Photo</label>
+                {editPhoto ? (
+                  <div className="edit-photo-item cover" style={{ position: 'relative', width: '100%', height: '160px', borderRadius: 'var(--radius-md)', overflow: 'hidden', marginBottom: '0.5rem' }}>
+                    <img src={editPhoto} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="Cover" />
+                    <button 
+                      type="button" 
+                      onClick={() => setEditPhoto(null)} 
+                      className="remove-photo-badge"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    <button 
+                      type="button" 
+                      onClick={() => editCoverInputRef.current?.click()}
+                      className="btn-secondary"
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem', padding: '0.65rem' }}
+                    >
+                      📷 Upload Cover Photo
+                    </button>
+                    <input 
+                      type="file" 
+                      accept="image/*"
+                      ref={editCoverInputRef}
+                      onChange={async (e) => {
+                        const file = e.target.files[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onload = async (event) => {
+                            const compressed = await compressImage(event.target.result);
+                            setEditPhoto(compressed);
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                      style={{ display: 'none' }}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Bought Photos */}
+              <div className="form-group">
+                <label style={{ fontSize: '0.85rem', color: 'var(--text-dim)', fontWeight: 600, display: 'block', marginBottom: '0.35rem' }}>📸 What was bought photos</label>
+                <div className="edit-photo-grid">
+                  {editBoughtPhotos.map((pUrl, idx) => (
+                    <div key={idx} className="edit-photo-item" style={{ width: '80px', height: '80px' }}>
+                      <img src={pUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="Bought" />
+                      <button 
+                        type="button" 
+                        onClick={() => setEditBoughtPhotos(prev => prev.filter((_, i) => i !== idx))}
+                        className="remove-photo-badge"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <button 
+                  type="button" 
+                  onClick={() => editBoughtInputRef.current?.click()}
+                  className="btn-secondary"
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem', padding: '0.65rem', width: 'auto' }}
+                >
+                  ➕ Add Photos
+                </button>
+                <input 
+                  type="file" 
+                  accept="image/*"
+                  multiple
+                  ref={editBoughtInputRef}
+                  onChange={async (e) => {
+                    const files = Array.from(e.target.files);
+                    if (files.length > 0) {
+                      const newImages = await Promise.all(files.map(file => {
+                        return new Promise((resolve) => {
+                          const reader = new FileReader();
+                          reader.onload = async (event) => {
+                            const compressed = await compressImage(event.target.result);
+                            resolve(compressed);
+                          };
+                          reader.readAsDataURL(file);
+                        });
+                      }));
+                      setEditBoughtPhotos(prev => [...prev, ...newImages]);
+                    }
+                  }}
+                  style={{ display: 'none' }}
+                />
+              </div>
+
+              {/* Menu Photos */}
+              <div className="form-group">
+                <label style={{ fontSize: '0.85rem', color: 'var(--text-dim)', fontWeight: 600, display: 'block', marginBottom: '0.35rem' }}>📋 Restaurant Menu photos</label>
+                <div className="edit-photo-grid">
+                  {editMenuPhotos.map((pUrl, idx) => (
+                    <div key={idx} className="edit-photo-item" style={{ width: '80px', height: '80px' }}>
+                      <img src={pUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="Menu" />
+                      <button 
+                        type="button" 
+                        onClick={() => setEditMenuPhotos(prev => prev.filter((_, i) => i !== idx))}
+                        className="remove-photo-badge"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <button 
+                  type="button" 
+                  onClick={() => editMenuInputRef.current?.click()}
+                  className="btn-secondary"
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem', padding: '0.65rem', width: 'auto' }}
+                >
+                  ➕ Add Menu Photos
+                </button>
+                <input 
+                  type="file" 
+                  accept="image/*"
+                  multiple
+                  ref={editMenuInputRef}
+                  onChange={async (e) => {
+                    const files = Array.from(e.target.files);
+                    if (files.length > 0) {
+                      const newImages = await Promise.all(files.map(file => {
+                        return new Promise((resolve) => {
+                          const reader = new FileReader();
+                          reader.onload = async (event) => {
+                            const compressed = await compressImage(event.target.result);
+                            resolve(compressed);
+                          };
+                          reader.readAsDataURL(file);
+                        });
+                      }));
+                      setEditMenuPhotos(prev => [...prev, ...newImages]);
+                    }
+                  }}
+                  style={{ display: 'none' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.5rem', borderTop: '1px solid var(--border-color)', paddingTop: '1.25rem' }}>
+                <button type="submit" className="btn-primary" disabled={isSaving} style={{ flex: 1 }}>
+                  {isSaving ? 'Saving Changes...' : 'Save Changes'}
+                </button>
+                <button type="button" className="btn-secondary" onClick={() => setIsEditing(false)} style={{ flex: 1 }} disabled={isSaving}>
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -1964,9 +2428,29 @@ function VisitDetailModal({ visit, visits, currentUser, onClose, onNavigateToMap
             </div>
           </div>
 
-          <button className="btn-secondary" onClick={onClose}>
-            Close Details
-          </button>
+          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <button className="btn-secondary" onClick={onClose} style={{ flex: 1, minWidth: '100px' }}>
+              Close Details
+            </button>
+            {currentUser && currentUser.email === currentVisit.userEmail && (
+              <>
+                <button 
+                  className="btn-primary edit-btn" 
+                  onClick={() => setIsEditing(true)} 
+                  style={{ flex: 1, minWidth: '100px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem' }}
+                >
+                  ✏️ Edit
+                </button>
+                <button 
+                  className="btn-danger delete-btn" 
+                  onClick={handleDeleteLog} 
+                  style={{ flex: 1, minWidth: '100px' }}
+                >
+                  🗑️ Delete
+                </button>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </div>
