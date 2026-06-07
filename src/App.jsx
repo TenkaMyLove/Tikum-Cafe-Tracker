@@ -1061,15 +1061,15 @@ function AddVisitView({ onVisitAdded, currentUser, setActiveTab, revisitPreFill,
   const [review, setReview] = useState('');
   const [photo, setPhoto] = useState('');
   const [boughtPhotos, setBoughtPhotos] = useState([]);
-  const [menuPhotos, setMenuPhotos] = useState([]);
+  const [menuPhotos, setMenuPhotos] = useState(revisitPreFill?.menuPhoto ? ensureArray(revisitPreFill.menuPhoto) : []);
   const [lat, setLat] = useState(revisitPreFill?.lat || '');
   const [lng, setLng] = useState(revisitPreFill?.lng || '');
   const [orderedItems, setOrderedItems] = useState('');
   const [priceSpent, setPriceSpent] = useState('');
-  const [foodPriceRange, setFoodPriceRange] = useState(1);
-  const [beveragePriceRange, setBeveragePriceRange] = useState(1);
+  const [foodPriceRange, setFoodPriceRange] = useState(revisitPreFill?.foodPriceRange || 1);
+  const [beveragePriceRange, setBeveragePriceRange] = useState(revisitPreFill?.beveragePriceRange || 1);
   const [address, setAddress] = useState(revisitPreFill?.address || '');
-  const [locationStatus, setLocationStatus] = useState(revisitPreFill ? 'Location pre-filled from selected cafe! ✓' : '');
+  const [locationStatus, setLocationStatus] = useState(revisitPreFill ? 'Location and cafe details pre-filled! ✓' : '');
 
   useEffect(() => {
     if (revisitPreFill) {
@@ -1620,18 +1620,20 @@ function VisitDetailModal({ visit, visits, currentUser, onClose, onNavigateToMap
   }, [dropdownRef]);
 
   const siblingVisits = visits.filter(v => v.name.toLowerCase() === visit.name.toLowerCase());
+  // Sort chronologically (earliest first) to find the absolute first visit
+  const chronologicalSiblings = [...siblingVisits].sort((a, b) => new Date(a.date) - new Date(b.date));
+  const oldestSibling = chronologicalSiblings[0];
+
+  // Sort siblings reverse-chronologically (latest first) for dropdown menu list
   const sortedSiblings = [...siblingVisits].sort((a, b) => new Date(b.date) - new Date(a.date));
 
   const formatSessionDate = (dateStr) => {
-    const d = new Date(dateStr);
-    const day = String(d.getDate()).padStart(2, '0');
-    const months = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December'
-    ];
-    const month = months[d.getMonth()];
-    const year = d.getFullYear();
-    return `${day}-${month}-${year}`;
+    return new Date(dateStr).toLocaleDateString(undefined, {
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric'
+    });
   };
 
   const handleAddRevisit = () => {
@@ -1639,16 +1641,12 @@ function VisitDetailModal({ visit, visits, currentUser, onClose, onNavigateToMap
       name: currentVisit.name,
       lat: currentVisit.lat,
       lng: currentVisit.lng,
-      address: currentVisit.address
+      address: currentVisit.address,
+      menuPhoto: currentVisit.menuPhoto,
+      foodPriceRange: currentVisit.foodPriceRange,
+      beveragePriceRange: currentVisit.beveragePriceRange
     });
   };
-
-  const dateStr = new Date(currentVisit.date).toLocaleDateString(undefined, {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric'
-  });
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -1672,12 +1670,7 @@ function VisitDetailModal({ visit, visits, currentUser, onClose, onNavigateToMap
             </div>
           </div>
           
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1.5rem' }}>
-            <div className="card-meta" style={{ margin: 0 }}>
-              <Icon name="calendar" style={{ width: '14px', height: '14px' }} />
-              <span>{dateStr}</span>
-            </div>
-
+          <div style={{ marginBottom: '1.25rem' }}>
             <div className="session-selector-container" ref={dropdownRef} style={{ position: 'relative', display: 'inline-block' }}>
               <button 
                 className="session-dropdown-btn" 
@@ -1686,9 +1679,9 @@ function VisitDetailModal({ visit, visits, currentUser, onClose, onNavigateToMap
                   display: 'flex',
                   alignItems: 'center',
                   gap: '0.5rem',
-                  padding: '0.4rem 0.85rem',
+                  padding: '0.45rem 0.95rem',
                   borderRadius: '20px',
-                  fontSize: '0.8rem',
+                  fontSize: '0.85rem',
                   fontWeight: 600,
                   background: 'rgba(139, 92, 246, 0.08)',
                   border: '1px solid rgba(139, 92, 246, 0.25)',
@@ -1697,8 +1690,9 @@ function VisitDetailModal({ visit, visits, currentUser, onClose, onNavigateToMap
                   transition: 'var(--transition)'
                 }}
               >
-                <span>📅 Session: {formatSessionDate(currentVisit.date)}</span>
-                <span style={{ fontSize: '0.65rem' }}>▼</span>
+                <Icon name="calendar" style={{ width: '14px', height: '14px', color: 'var(--primary)' }} />
+                <span>{formatSessionDate(currentVisit.date)}</span>
+                <span style={{ fontSize: '0.65rem', marginLeft: '0.25rem', opacity: 0.8 }}>▼</span>
               </button>
               
               {isSessionDropdownOpen && (
@@ -1707,9 +1701,9 @@ function VisitDetailModal({ visit, visits, currentUser, onClose, onNavigateToMap
                   style={{
                     position: 'absolute',
                     top: '110%',
-                    right: '0',
+                    left: '0',
                     zIndex: 100,
-                    minWidth: '240px',
+                    minWidth: '280px',
                     maxHeight: '220px',
                     overflowY: 'auto',
                     borderRadius: 'var(--radius-md)',
@@ -1726,6 +1720,9 @@ function VisitDetailModal({ visit, visits, currentUser, onClose, onNavigateToMap
                   
                   {sortedSiblings.map((sibling) => {
                     const isSelected = sibling.id === currentVisit.id;
+                    const isFirstVisit = sibling.id === oldestSibling?.id;
+                    const label = isFirstVisit ? ' (First Visit)' : ' (Revisit)';
+                    
                     return (
                       <button
                         key={sibling.id}
@@ -1752,7 +1749,7 @@ function VisitDetailModal({ visit, visits, currentUser, onClose, onNavigateToMap
                       >
                         <span>{formatSessionDate(sibling.date)}</span>
                         <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                          by {sibling.user} {sibling.id === visit.id ? ' (Original Log)' : ' (Revisit)'}
+                          by {sibling.user}{label}
                         </span>
                       </button>
                     );
