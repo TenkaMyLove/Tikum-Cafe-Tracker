@@ -726,11 +726,13 @@ body {
   border: 1px solid var(--border-color);
   color: var(--text-muted);
   max-width: 100%;
+  min-width: 0;
 }
 
 .detail-pill span {
   white-space: normal;
-  word-break: break-word;
+  overflow-wrap: anywhere;
+  word-break: break-all;
   line-height: 1.4;
   text-align: left;
 }
