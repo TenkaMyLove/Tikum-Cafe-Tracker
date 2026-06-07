@@ -20,11 +20,85 @@ const pool = mysql.createPool({
   queueLimit: 0
 });
 
-// Test connection on startup
+// Database Schema Migration: Update price range check constraints to allow values 1 to 15
+async function runMigrations() {
+  const connection = await pool.getConnection();
+  try {
+    console.log('Checking database constraints for price ranges...');
+    
+    // 1. Query constraints dynamically
+    const [constraints] = await connection.query(`
+      SELECT tc.CONSTRAINT_NAME, cc.CHECK_CLAUSE
+      FROM information_schema.TABLE_CONSTRAINTS tc
+      JOIN information_schema.CHECK_CONSTRAINTS cc 
+        ON tc.CONSTRAINT_SCHEMA = cc.CONSTRAINT_SCHEMA 
+        AND tc.CONSTRAINT_NAME = cc.CONSTRAINT_NAME
+      WHERE tc.TABLE_SCHEMA = DATABASE() 
+        AND tc.TABLE_NAME = 'visits'
+        AND tc.CONSTRAINT_TYPE = 'CHECK'
+    `);
+
+    // 2. Identify and drop constraints restricting food_price_range or beverage_price_range to 1-5
+    for (const c of constraints) {
+      const name = c.CONSTRAINT_NAME;
+      const clause = c.CHECK_CLAUSE.toLowerCase();
+      
+      if (clause.includes('food_price_range') && (clause.includes('between 1 and 5') || clause.includes('<= 5'))) {
+        console.log(`Dropping constraint ${name} containing food_price_range check: ${c.CHECK_CLAUSE}`);
+        try {
+          await connection.query(`ALTER TABLE visits DROP CONSTRAINT \`${name}\``);
+        } catch (err) {
+          console.error(`Failed to drop constraint ${name}:`, err.message);
+        }
+      }
+      
+      if (clause.includes('beverage_price_range') && (clause.includes('between 1 and 5') || clause.includes('<= 5'))) {
+        console.log(`Dropping constraint ${name} containing beverage_price_range check: ${c.CHECK_CLAUSE}`);
+        try {
+          await connection.query(`ALTER TABLE visits DROP CONSTRAINT \`${name}\``);
+        } catch (err) {
+          console.error(`Failed to drop constraint ${name}:`, err.message);
+        }
+      }
+    }
+
+    // 3. Add the updated constraints
+    try {
+      await connection.query('ALTER TABLE visits ADD CONSTRAINT visits_chk_2 CHECK (food_price_range BETWEEN 1 AND 15)');
+      console.log('✅ Added constraint visits_chk_2 (food_price_range BETWEEN 1 AND 15)');
+    } catch (err) {
+      if (err.message.includes('already exists')) {
+        console.log('Constraint visits_chk_2 already exists.');
+      } else {
+        console.error('Failed to add constraint visits_chk_2:', err.message);
+      }
+    }
+
+    try {
+      await connection.query('ALTER TABLE visits ADD CONSTRAINT visits_chk_3 CHECK (beverage_price_range BETWEEN 1 AND 15)');
+      console.log('✅ Added constraint visits_chk_3 (beverage_price_range BETWEEN 1 AND 15)');
+    } catch (err) {
+      if (err.message.includes('already exists')) {
+        console.log('Constraint visits_chk_3 already exists.');
+      } else {
+        console.error('Failed to add constraint visits_chk_3:', err.message);
+      }
+    }
+
+    console.log('🎉 Database migrations completed successfully!');
+  } catch (error) {
+    console.error('❌ Error during database migrations:', error.message);
+  } finally {
+    connection.release();
+  }
+}
+
+// Test connection on startup and run migrations
 pool.getConnection()
-  .then(conn => {
+  .then(async conn => {
     console.log('✅ Successfully connected to the MySQL Database!');
     conn.release();
+    await runMigrations();
   })
   .catch(err => {
     console.error('❌ Database connection failed. Verify your .env credentials!', err.message);
