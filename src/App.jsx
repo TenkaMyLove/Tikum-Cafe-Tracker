@@ -947,8 +947,9 @@ function ensureArray(photoData) {
 // Helper to format price range to USD symbols
 function formatPriceRange(val) {
   const numericVal = parseInt(val) || 1;
-  if (numericVal >= 5) return '$$$$$+';
-  return '$'.repeat(numericVal);
+  if (numericVal === 1) return '$';
+  if (numericVal >= 5) return '$ - $$$$$+';
+  return `$ - ${'$'.repeat(numericVal)}`;
 }
 
 // Component to render a single photo or a beautiful 4-grid gallery of photos
@@ -1378,7 +1379,7 @@ function AddVisitView({ onVisitAdded, currentUser, setActiveTab, revisitPreFill,
                       className={`price-range-btn food ${val <= foodPriceRange ? 'active' : ''}`}
                       onClick={() => setFoodPriceRange(val)}
                     >
-                      {formatPriceRange(val)}
+                      {val === 5 ? '$$$$$+' : '$'.repeat(val)}
                     </button>
                   ))}
                 </div>
@@ -1395,7 +1396,7 @@ function AddVisitView({ onVisitAdded, currentUser, setActiveTab, revisitPreFill,
                       className={`price-range-btn ${val <= beveragePriceRange ? 'active' : ''}`}
                       onClick={() => setBeveragePriceRange(val)}
                     >
-                      {formatPriceRange(val)}
+                      {val === 5 ? '$$$$$+' : '$'.repeat(val)}
                     </button>
                   ))}
                 </div>
