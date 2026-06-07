@@ -30,11 +30,32 @@
   --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* Custom Scrollbars globally */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(10, 10, 12, 0.4);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(139, 92, 246, 0.25);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--primary);
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
   font-family: 'Plus Jakarta Sans', 'Outfit', sans-serif;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(139, 92, 246, 0.25) rgba(10, 10, 12, 0.4);
 }
 
 body {
@@ -674,8 +695,9 @@ body {
 .modal-title-row {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 1rem;
+  align-items: center;
+  margin-bottom: 0.5rem;
+  gap: 1rem;
 }
 
 .modal-title {

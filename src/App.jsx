@@ -337,13 +337,6 @@ export default function App() {
 
   // If not logged in, show Auth
   if (!currentUser) {
-    const handleAutofill = () => {
-      setIsRegisterMode(false);
-      setLoginEmail('member@tikum.com');
-      setLoginPassword('member123');
-      setAuthError('');
-    };
-
     return (
       <div className="auth-container">
         <div className="glass auth-card">
@@ -394,19 +387,6 @@ export default function App() {
 
           {activeAuthTab === 'member' ? (
             <div className="auth-form-wrapper" style={{ animation: 'guestFadeIn 0.3s ease-out' }}>
-              {/* Autofill Demo Capsule */}
-              {!isRegisterMode && (
-                <div className="autofill-container">
-                  <div className="autofill-text">
-                    <span style={{ fontWeight: 700, color: 'var(--primary)', display: 'block', marginBottom: '0.1rem' }}>💡 Quick Demo Login</span>
-                    <span>member@tikum.com / member123</span>
-                  </div>
-                  <button type="button" className="autofill-btn" onClick={handleAutofill}>
-                    Autofill
-                  </button>
-                </div>
-              )}
-
               <form onSubmit={handleAuthSubmit}>
                 {isRegisterMode && (
                   <div className="form-group">
@@ -1621,17 +1601,16 @@ function VisitDetailModal({ visit, onClose, onNavigateToMap, onOpenLightbox }) {
         
         <div className="modal-body">
           <div className="modal-title-row">
-            <div>
-              <h2 className="modal-title">{visit.name}</h2>
-              <div className="card-meta" style={{ marginTop: '0.25rem' }}>
-                <Icon name="calendar" style={{ width: '14px', height: '14px' }} />
-                <span>{dateStr}</span>
-              </div>
-            </div>
+            <h2 className="modal-title">{visit.name}</h2>
             
-            <div className="card-badge rating" style={{ position: 'relative', top: 'auto', left: 'auto' }}>
+            <div className="card-badge rating" style={{ position: 'relative', top: 'auto', left: 'auto', flexShrink: 0 }}>
               ☕ {visit.rating}.0
             </div>
+          </div>
+          
+          <div className="card-meta" style={{ marginTop: 0, marginBottom: '1.25rem' }}>
+            <Icon name="calendar" style={{ width: '14px', height: '14px' }} />
+            <span>{dateStr}</span>
           </div>
 
           {/* Clickable Address & GPS Box */}
