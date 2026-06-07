@@ -1727,5 +1727,16 @@ body {
   }
 }
 
+/* Session Selection Hover Custom Styles */
+.session-menu-item:hover {
+  background: rgba(255, 255, 255, 0.04) !important;
+  color: #fff !important;
+}
+
+.session-menu-add-btn:hover {
+  background: rgba(16, 185, 129, 0.15) !important;
+  color: #34d399 !important;
+}
+
 
 

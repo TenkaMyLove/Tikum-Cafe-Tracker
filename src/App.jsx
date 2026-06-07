@@ -182,6 +182,7 @@ export default function App() {
   const [lightboxData, setLightboxData] = useState(null);
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [isInstallable, setIsInstallable] = useState(false);
+  const [revisitPreFill, setRevisitPreFill] = useState(null);
 
   useEffect(() => {
     const handleBeforeInstallPrompt = (e) => {
@@ -622,7 +623,13 @@ export default function App() {
         {activeTab === 'add' && (
           currentUser.role === 'guest'
             ? <LockedGuestView onLogout={handleLogout} />
-            : <AddVisitView onVisitAdded={fetchVisits} currentUser={currentUser} setActiveTab={setActiveTab} />
+            : <AddVisitView 
+                onVisitAdded={fetchVisits} 
+                currentUser={currentUser} 
+                setActiveTab={setActiveTab} 
+                revisitPreFill={revisitPreFill}
+                clearRevisitPreFill={() => setRevisitPreFill(null)}
+              />
         )}
       </main>
 
@@ -657,9 +664,16 @@ export default function App() {
       {selectedVisit && (
         <VisitDetailModal 
           visit={selectedVisit} 
+          visits={visits}
+          currentUser={currentUser}
           onClose={() => setSelectedVisit(null)} 
           onNavigateToMap={handleNavigateToMap} 
           onOpenLightbox={handleOpenLightbox}
+          onAddRevisit={(preFillData) => {
+            setRevisitPreFill(preFillData);
+            setActiveTab('add');
+            setSelectedVisit(null);
+          }}
         />
       )}
 
@@ -1041,21 +1055,27 @@ function LockedGuestView({ onLogout }) {
   );
 }
 
-function AddVisitView({ onVisitAdded, currentUser, setActiveTab }) {
-  const [name, setName] = useState('');
+function AddVisitView({ onVisitAdded, currentUser, setActiveTab, revisitPreFill, clearRevisitPreFill }) {
+  const [name, setName] = useState(revisitPreFill?.name || '');
   const [rating, setRating] = useState(0);
   const [review, setReview] = useState('');
   const [photo, setPhoto] = useState('');
   const [boughtPhotos, setBoughtPhotos] = useState([]);
   const [menuPhotos, setMenuPhotos] = useState([]);
-  const [lat, setLat] = useState('');
-  const [lng, setLng] = useState('');
+  const [lat, setLat] = useState(revisitPreFill?.lat || '');
+  const [lng, setLng] = useState(revisitPreFill?.lng || '');
   const [orderedItems, setOrderedItems] = useState('');
   const [priceSpent, setPriceSpent] = useState('');
   const [foodPriceRange, setFoodPriceRange] = useState(1);
   const [beveragePriceRange, setBeveragePriceRange] = useState(1);
-  const [address, setAddress] = useState('');
-  const [locationStatus, setLocationStatus] = useState('');
+  const [address, setAddress] = useState(revisitPreFill?.address || '');
+  const [locationStatus, setLocationStatus] = useState(revisitPreFill ? 'Location pre-filled from selected cafe! ✓' : '');
+
+  useEffect(() => {
+    if (revisitPreFill) {
+      clearRevisitPreFill();
+    }
+  }, [revisitPreFill]);
 
   const fileInputRef = useRef(null);
   const boughtFileInputRef = useRef(null);
@@ -1578,8 +1598,52 @@ function AddVisitView({ onVisitAdded, currentUser, setActiveTab }) {
 }
 // --- VISIT DETAIL MODAL OVERLAY ---
 
-function VisitDetailModal({ visit, onClose, onNavigateToMap, onOpenLightbox }) {
-  const dateStr = new Date(visit.date).toLocaleDateString(undefined, {
+function VisitDetailModal({ visit, visits, currentUser, onClose, onNavigateToMap, onOpenLightbox, onAddRevisit }) {
+  const [currentVisit, setCurrentVisit] = useState(visit);
+  const [isSessionDropdownOpen, setIsSessionDropdownOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    setCurrentVisit(visit);
+  }, [visit]);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsSessionDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [dropdownRef]);
+
+  const siblingVisits = visits.filter(v => v.name.toLowerCase() === visit.name.toLowerCase());
+  const sortedSiblings = [...siblingVisits].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+  const formatSessionDate = (dateStr) => {
+    const d = new Date(dateStr);
+    const day = String(d.getDate()).padStart(2, '0');
+    const months = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    const month = months[d.getMonth()];
+    const year = d.getFullYear();
+    return `${day}-${month}-${year}`;
+  };
+
+  const handleAddRevisit = () => {
+    onAddRevisit({
+      name: currentVisit.name,
+      lat: currentVisit.lat,
+      lng: currentVisit.lng,
+      address: currentVisit.address
+    });
+  };
+
+  const dateStr = new Date(currentVisit.date).toLocaleDateString(undefined, {
     weekday: 'long',
     month: 'long',
     day: 'numeric',
@@ -1589,32 +1653,146 @@ function VisitDetailModal({ visit, onClose, onNavigateToMap, onOpenLightbox }) {
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="glass modal-content" onClick={(e) => e.stopPropagation()}>
-        {visit.photo && (
+        {currentVisit.photo && (
           <img 
-            src={visit.photo} 
-            alt={visit.name} 
+            src={currentVisit.photo} 
+            alt={currentVisit.name} 
             className="modal-header-img" 
             style={{ cursor: 'pointer' }}
-            onClick={() => onOpenLightbox && onOpenLightbox([visit.photo], "Cover Photo", 0)}
+            onClick={() => onOpenLightbox && onOpenLightbox([currentVisit.photo], "Cover Photo", 0)}
           />
         )}
         
         <div className="modal-body">
           <div className="modal-title-row">
-            <h2 className="modal-title">{visit.name}</h2>
+            <h2 className="modal-title">{currentVisit.name}</h2>
             
             <div className="card-badge rating" style={{ position: 'relative', top: 'auto', left: 'auto', flexShrink: 0 }}>
-              ☕ {visit.rating}.0
+              ☕ {currentVisit.rating}.0
             </div>
           </div>
           
-          <div className="card-meta" style={{ marginTop: 0, marginBottom: '1.25rem' }}>
-            <Icon name="calendar" style={{ width: '14px', height: '14px' }} />
-            <span>{dateStr}</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1.5rem' }}>
+            <div className="card-meta" style={{ margin: 0 }}>
+              <Icon name="calendar" style={{ width: '14px', height: '14px' }} />
+              <span>{dateStr}</span>
+            </div>
+
+            <div className="session-selector-container" ref={dropdownRef} style={{ position: 'relative', display: 'inline-block' }}>
+              <button 
+                className="session-dropdown-btn" 
+                onClick={() => setIsSessionDropdownOpen(!isSessionDropdownOpen)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  padding: '0.4rem 0.85rem',
+                  borderRadius: '20px',
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  background: 'rgba(139, 92, 246, 0.08)',
+                  border: '1px solid rgba(139, 92, 246, 0.25)',
+                  color: '#c084fc',
+                  cursor: 'pointer',
+                  transition: 'var(--transition)'
+                }}
+              >
+                <span>📅 Session: {formatSessionDate(currentVisit.date)}</span>
+                <span style={{ fontSize: '0.65rem' }}>▼</span>
+              </button>
+              
+              {isSessionDropdownOpen && (
+                <div 
+                  className="glass session-dropdown-menu"
+                  style={{
+                    position: 'absolute',
+                    top: '110%',
+                    right: '0',
+                    zIndex: 100,
+                    minWidth: '240px',
+                    maxHeight: '220px',
+                    overflowY: 'auto',
+                    borderRadius: 'var(--radius-md)',
+                    background: 'var(--bg-panel-solid)',
+                    border: '1px solid var(--border-color)',
+                    padding: '0.5rem 0',
+                    boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
+                    animation: 'fadeIn 0.15s ease-out'
+                  }}
+                >
+                  <div style={{ padding: '0.35rem 0.85rem', fontSize: '0.7rem', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '1px solid var(--border-color)', marginBottom: '0.35rem' }}>
+                    Select Session / Revisit
+                  </div>
+                  
+                  {sortedSiblings.map((sibling) => {
+                    const isSelected = sibling.id === currentVisit.id;
+                    return (
+                      <button
+                        key={sibling.id}
+                        onClick={() => {
+                          setCurrentVisit(sibling);
+                          setIsSessionDropdownOpen(false);
+                        }}
+                        style={{
+                          width: '100%',
+                          textAlign: 'left',
+                          padding: '0.5rem 0.85rem',
+                          background: isSelected ? 'rgba(139, 92, 246, 0.12)' : 'transparent',
+                          border: 'none',
+                          color: isSelected ? 'var(--primary)' : 'var(--text-main)',
+                          fontSize: '0.8rem',
+                          fontWeight: isSelected ? 700 : 500,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.15rem',
+                          transition: 'var(--transition)'
+                        }}
+                        className="session-menu-item"
+                      >
+                        <span>{formatSessionDate(sibling.date)}</span>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                          by {sibling.user} {sibling.id === visit.id ? ' (Original Log)' : ' (Revisit)'}
+                        </span>
+                      </button>
+                    );
+                  })}
+                  
+                  {currentUser.role !== 'guest' && (
+                    <button
+                      onClick={() => {
+                        setIsSessionDropdownOpen(false);
+                        handleAddRevisit();
+                      }}
+                      style={{
+                        width: '100%',
+                        textAlign: 'left',
+                        padding: '0.6rem 0.85rem',
+                        background: 'rgba(16, 185, 129, 0.08)',
+                        border: 'none',
+                        borderTop: '1px solid var(--border-color)',
+                        marginTop: '0.35rem',
+                        color: '#34d399',
+                        fontSize: '0.8rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.35rem',
+                        transition: 'var(--transition)'
+                      }}
+                      className="session-menu-add-btn"
+                    >
+                      <span>➕ Add Revisit Log</span>
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Clickable Address & GPS Box */}
-          {visit.address && (
+          {currentVisit.address && (
             <div 
               className="address-click-box" 
               style={{ 
@@ -1625,7 +1803,7 @@ function VisitDetailModal({ visit, onClose, onNavigateToMap, onOpenLightbox }) {
                 marginBottom: '1.5rem', 
                 cursor: 'pointer' 
               }}
-              onClick={() => onNavigateToMap(visit)}
+              onClick={() => onNavigateToMap(currentVisit)}
               title="Click to view on interactive map 🗺️"
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1634,10 +1812,10 @@ function VisitDetailModal({ visit, onClose, onNavigateToMap, onOpenLightbox }) {
                     📍 Location Address & GPS
                   </span>
                   <span style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-main)', display: 'block', marginBottom: '0.35rem' }}>
-                    {visit.address}
+                    {currentVisit.address}
                   </span>
                   <code style={{ fontSize: '0.75rem', color: 'var(--primary)', background: 'rgba(139, 92, 246, 0.08)', padding: '0.15rem 0.45rem', borderRadius: '4px', border: '1px solid rgba(139, 92, 246, 0.15)', fontFamily: 'monospace' }}>
-                    {parseFloat(visit.lat).toFixed(5)}, {parseFloat(visit.lng).toFixed(5)}
+                    {parseFloat(currentVisit.lat).toFixed(5)}, {parseFloat(currentVisit.lng).toFixed(5)}
                   </code>
                 </div>
                 <span style={{ fontSize: '0.8rem', color: 'var(--primary)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.25rem', flexShrink: 0, whiteSpace: 'nowrap' }}>
@@ -1649,33 +1827,33 @@ function VisitDetailModal({ visit, onClose, onNavigateToMap, onOpenLightbox }) {
 
           {/* Details Pill Row */}
           <div className="detail-pill-container">
-            {visit.orderedItems && (
+            {currentVisit.orderedItems && (
               <div className="detail-pill ordered" title="Ordered Items">
                 <Icon name="cart" style={{ width: '14px', height: '14px' }} />
-                <span>{visit.orderedItems}</span>
+                <span>{currentVisit.orderedItems}</span>
               </div>
             )}
-            {visit.priceSpent && (
+            {currentVisit.priceSpent && (
               <div className="detail-pill spent" title="Total Spent">
                 <Icon name="dollar" style={{ width: '14px', height: '14px' }} />
-                <span>IDR {Number(visit.priceSpent).toLocaleString('id-ID')}</span>
+                <span>IDR {Number(currentVisit.priceSpent).toLocaleString('id-ID')}</span>
               </div>
             )}
           </div>
 
           {/* Price Ranges Row */}
-          {(visit.foodPriceRange || visit.beveragePriceRange) && (
+          {(currentVisit.foodPriceRange || currentVisit.beveragePriceRange) && (
             <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
-              {visit.foodPriceRange && (
+              {currentVisit.foodPriceRange && (
                 <div className="detail-pill food-price" title="Food Price Range" style={{ background: 'rgba(245, 158, 11, 0.04)', borderColor: 'rgba(245, 158, 11, 0.15)', color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '0.25rem', padding: '0.35rem 0.65rem', borderRadius: '6px', fontSize: '0.8rem', border: '1px solid rgba(245, 158, 11, 0.15)' }}>
                   <span style={{ fontWeight: 600, opacity: 0.8 }}>Food: </span>
-                  <span style={{ fontWeight: 800, letterSpacing: '0.5px' }}>{formatPriceRange(visit.foodPriceRange)}</span>
+                  <span style={{ fontWeight: 800, letterSpacing: '0.5px' }}>{formatPriceRange(currentVisit.foodPriceRange)}</span>
                 </div>
               )}
-              {visit.beveragePriceRange && (
+              {currentVisit.beveragePriceRange && (
                 <div className="detail-pill beverage-price" title="Beverages Price Range" style={{ background: 'rgba(139, 92, 246, 0.04)', borderColor: 'rgba(139, 92, 246, 0.15)', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.25rem', padding: '0.35rem 0.65rem', borderRadius: '6px', fontSize: '0.8rem', border: '1px solid rgba(139, 92, 246, 0.15)' }}>
                   <span style={{ fontWeight: 600, opacity: 0.8 }}>Beverages: </span>
-                  <span style={{ fontWeight: 800, letterSpacing: '0.5px' }}>{formatPriceRange(visit.beveragePriceRange)}</span>
+                  <span style={{ fontWeight: 800, letterSpacing: '0.5px' }}>{formatPriceRange(currentVisit.beveragePriceRange)}</span>
                 </div>
               )}
             </div>
@@ -1684,28 +1862,28 @@ function VisitDetailModal({ visit, onClose, onNavigateToMap, onOpenLightbox }) {
           <div style={{ marginBottom: '2rem' }}>
             <h4 style={{ fontSize: '0.9rem', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '0.5rem' }}>Thoughts & Experience</h4>
             <p style={{ fontSize: '1.05rem', lineHeight: '1.6', color: 'var(--text-main)', fontStyle: 'italic' }}>
-              "{visit.review}"
+              "{currentVisit.review}"
             </p>
           </div>
 
           {/* Secondary Photos: Items Bought & Restaurant Menu */}
-          {(ensureArray(visit.boughtPhoto).length > 0 || ensureArray(visit.menuPhoto).length > 0) && (
-            <div style={{ display: 'grid', gridTemplateColumns: (ensureArray(visit.boughtPhoto).length > 0 && ensureArray(visit.menuPhoto).length > 0) ? '1fr 1fr' : '1fr', gap: '1.25rem', marginBottom: '2rem' }}>
-              {ensureArray(visit.boughtPhoto).length > 0 && (
+          {(ensureArray(currentVisit.boughtPhoto).length > 0 || ensureArray(currentVisit.menuPhoto).length > 0) && (
+            <div style={{ display: 'grid', gridTemplateColumns: (ensureArray(currentVisit.boughtPhoto).length > 0 && ensureArray(currentVisit.menuPhoto).length > 0) ? '1fr 1fr' : '1fr', gap: '1.25rem', marginBottom: '2rem' }}>
+              {ensureArray(currentVisit.boughtPhoto).length > 0 && (
                 <div>
                   <h4 style={{ fontSize: '0.8rem', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '0.5rem' }}>📸 What was bought</h4>
                   <PhotoGallery 
-                    photos={visit.boughtPhoto} 
-                    onPhotoClick={(idx) => onOpenLightbox && onOpenLightbox(visit.boughtPhoto, "What Was Bought", idx)}
+                    photos={currentVisit.boughtPhoto} 
+                    onPhotoClick={(idx) => onOpenLightbox && onOpenLightbox(currentVisit.boughtPhoto, "What Was Bought", idx)}
                   />
                 </div>
               )}
-              {ensureArray(visit.menuPhoto).length > 0 && (
+              {ensureArray(currentVisit.menuPhoto).length > 0 && (
                 <div>
                   <h4 style={{ fontSize: '0.8rem', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '0.5rem' }}>📋 Restaurant Menu</h4>
                   <PhotoGallery 
-                    photos={visit.menuPhoto} 
-                    onPhotoClick={(idx) => onOpenLightbox && onOpenLightbox(visit.menuPhoto, "Restaurant Menu", idx)}
+                    photos={currentVisit.menuPhoto} 
+                    onPhotoClick={(idx) => onOpenLightbox && onOpenLightbox(currentVisit.menuPhoto, "Restaurant Menu", idx)}
                   />
                 </div>
               )}
@@ -1715,10 +1893,10 @@ function VisitDetailModal({ visit, onClose, onNavigateToMap, onOpenLightbox }) {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '1.5rem', borderTop: '1px solid var(--border-color)', marginBottom: '1.5rem' }}>
             <div className="card-user">
               <div className="avatar" style={{ width: '28px', height: '28px', fontSize: '0.85rem' }}>
-                {visit.user.charAt(0)}
+                {currentVisit.user.charAt(0)}
               </div>
               <div>
-                <span style={{ fontSize: '0.9rem', fontWeight: 600, display: 'block' }}>{visit.user}</span>
+                <span style={{ fontSize: '0.9rem', fontWeight: 600, display: 'block' }}>{currentVisit.user}</span>
                 <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>Caffeine Logger</span>
               </div>
             </div>
@@ -1726,13 +1904,13 @@ function VisitDetailModal({ visit, onClose, onNavigateToMap, onOpenLightbox }) {
             {/* Show Coordinates details - fully interactive */}
             <div 
               className="gps-click-link"
-              onClick={() => onNavigateToMap(visit)}
+              onClick={() => onNavigateToMap(currentVisit)}
               title="Click to locate on interactive map 🗺️"
               style={{ textAlign: 'right' }}
             >
               <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginBottom: '0.15rem' }}>GPS Coordinates</div>
               <code style={{ fontSize: '0.75rem', color: 'var(--primary)', fontFamily: 'monospace' }}>
-                {parseFloat(visit.lat).toFixed(6)}, {parseFloat(visit.lng).toFixed(6)}
+                {parseFloat(currentVisit.lat).toFixed(6)}, {parseFloat(currentVisit.lng).toFixed(6)}
               </code>
             </div>
           </div>
