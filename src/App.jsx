@@ -2357,16 +2357,20 @@ function VisitDetailModal({ visit, visits, currentUser, onClose, onNavigateToMap
                   <span>IDR {Number(currentVisit.priceSpent).toLocaleString('id-ID')}</span>
                 </div>
               )}
-              {currentVisit.foodPriceRange && (
-                <div className="detail-pill food-price" title="Food Price Range" style={{ background: 'rgba(245, 158, 11, 0.04)', borderColor: 'rgba(245, 158, 11, 0.15)', color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '0.25rem', padding: '0.35rem 0.65rem', borderRadius: '6px', fontSize: '0.8rem', border: '1px solid rgba(245, 158, 11, 0.15)' }}>
-                  <span style={{ fontWeight: 600, opacity: 0.8 }}>Food: </span>
-                  <span style={{ fontWeight: 800, letterSpacing: '0.5px' }}>{formatPriceRange(currentVisit.foodPriceRange)}</span>
-                </div>
-              )}
-              {currentVisit.beveragePriceRange && (
-                <div className="detail-pill beverage-price" title="Beverages Price Range" style={{ background: 'rgba(139, 92, 246, 0.04)', borderColor: 'rgba(139, 92, 246, 0.15)', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.25rem', padding: '0.35rem 0.65rem', borderRadius: '6px', fontSize: '0.8rem', border: '1px solid rgba(139, 92, 246, 0.15)' }}>
-                  <span style={{ fontWeight: 600, opacity: 0.8 }}>Beverages: </span>
-                  <span style={{ fontWeight: 800, letterSpacing: '0.5px' }}>{formatPriceRange(currentVisit.beveragePriceRange)}</span>
+              {(currentVisit.foodPriceRange || currentVisit.beveragePriceRange) && (
+                <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                  {currentVisit.foodPriceRange && (
+                    <div className="detail-pill food-price" title="Food Price Range" style={{ background: 'rgba(245, 158, 11, 0.04)', borderColor: 'rgba(245, 158, 11, 0.15)', color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '0.25rem', padding: '0.35rem 0.65rem', borderRadius: '6px', fontSize: '0.8rem', border: '1px solid rgba(245, 158, 11, 0.15)' }}>
+                      <span style={{ fontWeight: 600, opacity: 0.8 }}>Food: </span>
+                      <span style={{ fontWeight: 800, letterSpacing: '0.5px' }}>{formatPriceRange(currentVisit.foodPriceRange)}</span>
+                    </div>
+                  )}
+                  {currentVisit.beveragePriceRange && (
+                    <div className="detail-pill beverage-price" title="Beverages Price Range" style={{ background: 'rgba(139, 92, 246, 0.04)', borderColor: 'rgba(139, 92, 246, 0.15)', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.25rem', padding: '0.35rem 0.65rem', borderRadius: '6px', fontSize: '0.8rem', border: '1px solid rgba(139, 92, 246, 0.15)' }}>
+                      <span style={{ fontWeight: 600, opacity: 0.8 }}>Beverages: </span>
+                      <span style={{ fontWeight: 800, letterSpacing: '0.5px' }}>{formatPriceRange(currentVisit.beveragePriceRange)}</span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
