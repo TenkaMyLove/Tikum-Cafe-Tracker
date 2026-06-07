@@ -725,6 +725,20 @@ body {
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--border-color);
   color: var(--text-muted);
+  max-width: 100%;
+}
+
+.detail-pill span {
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.4;
+  text-align: left;
+}
+
+.detail-pill svg {
+  flex-shrink: 0;
+  align-self: flex-start;
+  margin-top: 1px;
 }
 
 .detail-pill.ordered {
