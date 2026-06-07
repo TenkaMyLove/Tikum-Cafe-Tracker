@@ -2338,25 +2338,25 @@ function VisitDetailModal({ visit, visits, currentUser, onClose, onNavigateToMap
             </div>
           )}
 
-          {/* Details Pill Row */}
-          <div className="detail-pill-container">
-            {currentVisit.orderedItems && (
+          {/* Details Pill Row - Ordered Items gets its own row/container to allow full-width wrapping */}
+          {currentVisit.orderedItems && (
+            <div className="detail-pill-container">
               <div className="detail-pill ordered" title="Ordered Items">
                 <Icon name="cart" style={{ width: '14px', height: '14px' }} />
                 <span>{currentVisit.orderedItems}</span>
               </div>
-            )}
-            {currentVisit.priceSpent && (
-              <div className="detail-pill spent" title="Total Spent">
-                <Icon name="dollar" style={{ width: '14px', height: '14px' }} />
-                <span>IDR {Number(currentVisit.priceSpent).toLocaleString('id-ID')}</span>
-              </div>
-            )}
-          </div>
+            </div>
+          )}
 
-          {/* Price Ranges Row */}
-          {(currentVisit.foodPriceRange || currentVisit.beveragePriceRange) && (
-            <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+          {/* Pricing & Ranges Row */}
+          {(currentVisit.priceSpent || currentVisit.foodPriceRange || currentVisit.beveragePriceRange) && (
+            <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+              {currentVisit.priceSpent && (
+                <div className="detail-pill spent" title="Total Spent">
+                  <Icon name="dollar" style={{ width: '14px', height: '14px' }} />
+                  <span>IDR {Number(currentVisit.priceSpent).toLocaleString('id-ID')}</span>
+                </div>
+              )}
               {currentVisit.foodPriceRange && (
                 <div className="detail-pill food-price" title="Food Price Range" style={{ background: 'rgba(245, 158, 11, 0.04)', borderColor: 'rgba(245, 158, 11, 0.15)', color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '0.25rem', padding: '0.35rem 0.65rem', borderRadius: '6px', fontSize: '0.8rem', border: '1px solid rgba(245, 158, 11, 0.15)' }}>
                   <span style={{ fontWeight: 600, opacity: 0.8 }}>Food: </span>
