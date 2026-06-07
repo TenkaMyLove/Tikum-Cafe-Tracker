@@ -944,12 +944,40 @@ function ensureArray(photoData) {
   return [photoData];
 }
 
+// Helper to encode range of min and max (1 to 5) into a single integer
+function encodeRange(min, max) {
+  const mn = Math.min(min, max);
+  const mx = Math.max(min, max);
+  if (mn === 1) return mx;
+  if (mn === 2) return mx + 4;
+  if (mn === 3) return mx + 7;
+  if (mn === 4) return mx + 9;
+  if (mn === 5) return 15;
+  return 1;
+}
+
+// Helper to decode a single integer back into min and max range (1 to 5)
+function decodeRange(val) {
+  const v = parseInt(val) || 1;
+  if (v >= 1 && v <= 5) return { min: 1, max: v };
+  if (v >= 6 && v <= 9) return { min: 2, max: v - 4 };
+  if (v >= 10 && v <= 12) return { min: 3, max: v - 7 };
+  if (v >= 13 && v <= 14) return { min: 4, max: v - 9 };
+  if (v === 15) return { min: 5, max: 5 };
+  return { min: 1, max: 1 };
+}
+
 // Helper to format price range to USD symbols
 function formatPriceRange(val) {
-  const numericVal = parseInt(val) || 1;
-  if (numericVal === 1) return '$';
-  if (numericVal >= 5) return '$ - $$$$$+';
-  return `$ - ${'$'.repeat(numericVal)}`;
+  const { min, max } = decodeRange(val);
+  const formatSymbol = (v) => {
+    if (v >= 5) return '$$$$$+';
+    return '$'.repeat(v);
+  };
+  if (min === max) {
+    return formatSymbol(min);
+  }
+  return `${formatSymbol(min)} - ${formatSymbol(max)}`;
 }
 
 // Component to render a single photo or a beautiful 4-grid gallery of photos
@@ -1085,6 +1113,21 @@ function AddVisitView({ onVisitAdded, currentUser, setActiveTab, revisitPreFill,
   const miniMapRef = useRef(null);
   const miniContainerRef = useRef(null);
   const miniMarkerRef = useRef(null);
+
+  const handlePriceSelect = (val, currentEncodedVal, setEncodedVal) => {
+    const { min, max } = decodeRange(currentEncodedVal);
+    if (min === max) {
+      if (val < min) {
+        setEncodedVal(encodeRange(val, min));
+      } else if (val > min) {
+        setEncodedVal(encodeRange(min, val));
+      } else {
+        setEncodedVal(encodeRange(val, val));
+      }
+    } else {
+      setEncodedVal(encodeRange(val, val));
+    }
+  };
 
   // Initialize mini interactive map for manual pin drop
   useEffect(() => {
@@ -1371,34 +1414,42 @@ function AddVisitView({ onVisitAdded, currentUser, setActiveTab, revisitPreFill,
               <div className="form-group">
                 <label>Food Price Range</label>
                 <div className="price-range-container">
-                  {[1, 2, 3, 4, 5].map((val) => (
-                    <button
-                      key={val}
-                      type="button"
-                      style={{ flex: 1 }}
-                      className={`price-range-btn food ${val <= foodPriceRange ? 'active' : ''}`}
-                      onClick={() => setFoodPriceRange(val)}
-                    >
-                      {val === 5 ? '$$$$$+' : '$'.repeat(val)}
-                    </button>
-                  ))}
+                  {[1, 2, 3, 4, 5].map((val) => {
+                    const { min, max } = decodeRange(foodPriceRange);
+                    const isActive = val >= min && val <= max;
+                    return (
+                      <button
+                        key={val}
+                        type="button"
+                        style={{ flex: 1 }}
+                        className={`price-range-btn food ${isActive ? 'active' : ''}`}
+                        onClick={() => handlePriceSelect(val, foodPriceRange, setFoodPriceRange)}
+                      >
+                        {val === 5 ? '$$$$$+' : '$'.repeat(val)}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
               <div className="form-group">
                 <label>Beverages Price Range</label>
                 <div className="price-range-container">
-                  {[1, 2, 3, 4, 5].map((val) => (
-                    <button
-                      key={val}
-                      type="button"
-                      style={{ flex: 1 }}
-                      className={`price-range-btn ${val <= beveragePriceRange ? 'active' : ''}`}
-                      onClick={() => setBeveragePriceRange(val)}
-                    >
-                      {val === 5 ? '$$$$$+' : '$'.repeat(val)}
-                    </button>
-                  ))}
+                  {[1, 2, 3, 4, 5].map((val) => {
+                    const { min, max } = decodeRange(beveragePriceRange);
+                    const isActive = val >= min && val <= max;
+                    return (
+                      <button
+                        key={val}
+                        type="button"
+                        style={{ flex: 1 }}
+                        className={`price-range-btn ${isActive ? 'active' : ''}`}
+                        onClick={() => handlePriceSelect(val, beveragePriceRange, setBeveragePriceRange)}
+                      >
+                        {val === 5 ? '$$$$$+' : '$'.repeat(val)}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </div>
