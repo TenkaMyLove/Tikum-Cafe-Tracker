@@ -626,7 +626,7 @@ export default function App() {
               onClick={() => setActiveTab('add')}
             >
               <Icon name="add" />
-              <span>Log Visit</span>
+              <span>Cafe Visit</span>
             </button>
             {isInstallable && (
               <button 
