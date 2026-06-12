@@ -287,6 +287,11 @@ export default function App() {
     }
   };
 
+  const handleViewProfile = (email) => {
+    fetchUserProfile(email);
+    setIsProfilePopoutOpen(true);
+  };
+
   const handleAvatarChange = async (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -786,7 +791,7 @@ export default function App() {
 
       {/* Main Workspace */}
       <main className="workspace">
-        {activeTab === 'feed' && <FeedView visits={visits} onSelectVisit={setSelectedVisit} onNavigateToMap={handleNavigateToMap} />}
+        {activeTab === 'feed' && <FeedView visits={visits} onSelectVisit={setSelectedVisit} onNavigateToMap={handleNavigateToMap} onViewProfile={handleViewProfile} />}
         {activeTab === 'map' && <MapView visits={visits} mapCenterOverride={mapCenterOverride} setMapCenterOverride={setMapCenterOverride} />}
         {activeTab === 'add' && (
           currentUser.role === 'guest'
@@ -855,6 +860,7 @@ export default function App() {
               }
             }
           }}
+          onViewProfile={handleViewProfile}
         />
       )}
 
@@ -1191,7 +1197,7 @@ export default function App() {
 
 // --- SUB-VIEWS ---
 
-function FeedView({ visits, onSelectVisit, onNavigateToMap }) {
+function FeedView({ visits, onSelectVisit, onNavigateToMap, onViewProfile }) {
   return (
     <div>
       <div className="section-header">
@@ -1278,8 +1284,7 @@ function FeedView({ visits, onSelectVisit, onNavigateToMap }) {
                     className="card-user" 
                     onClick={(e) => {
                       e.stopPropagation(); // Prevent opening the visit detail modal
-                      fetchUserProfile(visit.userEmail);
-                      setIsProfilePopoutOpen(true);
+                      onViewProfile(visit.userEmail);
                     }}
                     style={{ cursor: 'pointer' }}
                     title={`View ${visit.user}'s profile`}
@@ -2164,7 +2169,7 @@ function AddVisitView({ onVisitAdded, currentUser, setActiveTab, revisitPreFill,
 }
 // --- VISIT DETAIL MODAL OVERLAY ---
 
-function VisitDetailModal({ visit, visits, currentUser, onClose, onNavigateToMap, onOpenLightbox, onAddRevisit, onVisitDeleted, onVisitUpdated }) {
+function VisitDetailModal({ visit, visits, currentUser, onClose, onNavigateToMap, onOpenLightbox, onAddRevisit, onVisitDeleted, onVisitUpdated, onViewProfile }) {
   const [currentVisit, setCurrentVisit] = useState(visit);
   const [isSessionDropdownOpen, setIsSessionDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -2932,8 +2937,7 @@ function VisitDetailModal({ visit, visits, currentUser, onClose, onNavigateToMap
             <div 
               className="card-user" 
               onClick={() => {
-                fetchUserProfile(currentVisit.userEmail);
-                setIsProfilePopoutOpen(true);
+                onViewProfile(currentVisit.userEmail);
               }}
               style={{ cursor: 'pointer' }}
               title={`View ${currentVisit.user}'s profile`}
