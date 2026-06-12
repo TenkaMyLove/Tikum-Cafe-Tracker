@@ -2022,7 +2022,7 @@ function AddVisitView({ onVisitAdded, currentUser, setActiveTab, revisitPreFill,
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem', marginBottom: '1rem' }}>
               {/* Bought Photos */}
               <div className="form-group">
-                <label>What you bought / Cafe Vibe</label>
+                <label style={{ minHeight: '2.5rem', display: 'flex', alignItems: 'flex-end' }}>What you bought / Cafe Vibe</label>
                 <input 
                   type="file" 
                   ref={boughtFileInputRef} 
@@ -2049,7 +2049,6 @@ function AddVisitView({ onVisitAdded, currentUser, setActiveTab, revisitPreFill,
                     <Icon name="add" style={{ width: '20px', height: '20px', color: 'var(--text-muted)' }} />
                     <div>
                       <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>Upload Item Photos</div>
-                      <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>E.g. Latte cups, croissants (multiple allowed)</div>
                     </div>
                   </div>
                 )}
@@ -2057,7 +2056,7 @@ function AddVisitView({ onVisitAdded, currentUser, setActiveTab, revisitPreFill,
 
               {/* Menu Photos */}
               <div className="form-group">
-                <label>Menu</label>
+                <label style={{ minHeight: '2.5rem', display: 'flex', alignItems: 'flex-end' }}>Menu</label>
                 <input 
                   type="file" 
                   ref={menuFileInputRef} 
@@ -2084,7 +2083,6 @@ function AddVisitView({ onVisitAdded, currentUser, setActiveTab, revisitPreFill,
                     <Icon name="add" style={{ width: '20px', height: '20px', color: 'var(--text-muted)' }} />
                     <div>
                       <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>Upload Menu Cards</div>
-                      <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>E.g. Blackboard list, brochure (multiple allowed)</div>
                     </div>
                   </div>
                 )}
