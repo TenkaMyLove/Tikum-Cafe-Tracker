@@ -759,7 +759,7 @@ function FeedView({ visits, onSelectVisit, onNavigateToMap }) {
                     </div>
                   )}
                 </div>
-                <p className="card-review">"{visit.review.substring(0, 110)}{visit.review.length > 110 ? '...' : ''}"</p>
+                <p className="card-review">"{(visit.review || '').replace(/\/n/g, ' ').substring(0, 110)}{(visit.review || '').length > 110 ? '...' : ''}"</p>
                 
                 {/* Micro preview of what was ordered */}
                 {visit.orderedItems && (
@@ -859,7 +859,7 @@ function MapView({ visits, mapCenterOverride, setMapCenterOverride }) {
             </div>
             ${visit.address ? `<p style="font-size: 0.8rem; color: var(--text-dim); margin-bottom: 0.35rem; display: flex; align-items: center; gap: 0.25rem;">📍 <i>${visit.address}</i></p>` : ''}
             ${visit.orderedItems ? `<p style="font-size: 0.8rem; color: #c084fc; margin-bottom: 0.5rem;">🛒 Ordered: <i>${visit.orderedItems}</i></p>` : ''}
-            <p style="font-size: 0.8rem; line-height: 1.4; color: var(--text-muted)">"${visit.review.substring(0, 100)}${visit.review.length > 100 ? '...' : ''}"</p>
+            <p style="font-size: 0.8rem; line-height: 1.4; color: var(--text-muted)">"${(visit.review || '').replace(/\/n/g, ' ').substring(0, 100)}${(visit.review || '').length > 100 ? '...' : ''}"</p>
             ${visit.photo ? `<img src="${visit.photo}" alt="${visit.name}"/>` : ''}
             <div style="font-size: 0.75rem; color: var(--text-dim); margin-top: 0.5rem; text-align: right;">By: ${visit.user}</div>
           </div>
@@ -2378,8 +2378,8 @@ function VisitDetailModal({ visit, visits, currentUser, onClose, onNavigateToMap
 
           <div style={{ marginBottom: '2rem' }}>
             <h4 style={{ fontSize: '0.9rem', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '0.5rem' }}>Thoughts & Experience</h4>
-            <p style={{ fontSize: '1.05rem', lineHeight: '1.6', color: 'var(--text-main)', fontStyle: 'italic' }}>
-              "{currentVisit.review}"
+            <p style={{ fontSize: '1.05rem', lineHeight: '1.6', color: 'var(--text-main)', fontStyle: 'italic', whiteSpace: 'pre-wrap' }}>
+              "{(currentVisit.review || '').replace(/\/n/g, '\n')}"
             </p>
           </div>
 
