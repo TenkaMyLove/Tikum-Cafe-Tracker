@@ -701,14 +701,14 @@ export default function App() {
               <button 
                 className={`pwa-nav-item ${activeTab === 'map' ? 'active' : ''}`}
                 onClick={() => setActiveTab('map')}
-                title="Interactive Map"
+                title="Cafe Spot"
               >
                 <Icon name="map" style={{ width: '20px', height: '20px' }} />
               </button>
               <button 
                 className={`pwa-nav-item ${activeTab === 'add' ? 'active' : ''}`}
                 onClick={() => setActiveTab('add')}
-                title="Log Visit"
+                title="Visit"
               >
                 <Icon name="add" style={{ width: '20px', height: '20px' }} />
               </button>
@@ -809,7 +809,7 @@ export default function App() {
             onClick={() => setActiveTab('feed')}
           >
             <Icon name="feed" />
-            <span>Feed</span>
+            <span>Cafe Feed</span>
           </button>
           <button 
             className={`mobile-nav-btn ${activeTab === 'map' ? 'active' : ''}`}
@@ -1858,7 +1858,7 @@ function AddVisitView({ onVisitAdded, currentUser, setActiveTab, revisitPreFill,
   return (
     <div className="add-container">
       <div className="glass form-panel" style={{ padding: '1rem' }}>
-        <h2 style={{ margin: '1rem', fontFamily: 'Outfit', fontSize: '1.75rem' }}>Log New Coffee Spot</h2>
+        <h2 style={{ margin: '1rem', fontFamily: 'Outfit', fontSize: '1.75rem' }}>Add Cafe Spot</h2>
         
         <form onSubmit={handleSubmit} className="pwa-landscape-form-grid">
           <div className="form-left-col">
