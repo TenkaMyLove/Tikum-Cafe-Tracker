@@ -112,6 +112,21 @@ async function runMigrations() {
       console.log('✅ Added column users.custom_status');
     }
 
+    // 5. Migrate visits table for co-visitors
+    console.log('Checking database columns for visits table...');
+    const [visitsColumns] = await connection.query(`
+      SELECT COLUMN_NAME 
+      FROM information_schema.COLUMNS 
+      WHERE TABLE_SCHEMA = DATABASE() 
+        AND TABLE_NAME = 'visits'
+    `);
+    const visitsColNames = visitsColumns.map(c => c.COLUMN_NAME.toLowerCase());
+
+    if (!visitsColNames.includes('visited_with')) {
+      await connection.query('ALTER TABLE visits ADD COLUMN visited_with TEXT NULL');
+      console.log('✅ Added column visits.visited_with');
+    }
+
     console.log('🎉 Database migrations completed successfully!');
   } catch (error) {
     console.error('❌ Error during database migrations:', error.message);
@@ -150,6 +165,7 @@ app.get('/api/visits', async (req, res) => {
           v.food_price_range AS foodPriceRange,
           v.beverage_price_range AS beveragePriceRange,
           v.visit_date AS date,
+          v.visited_with AS visitedWith,
           u.name AS user,
           u.email AS userEmail,
           u.avatar AS userAvatar,
@@ -200,7 +216,7 @@ app.post('/api/visits', async (req, res) => {
     const {
       name, rating, review, lat, lng, address,
       orderedItems, priceSpent, foodPriceRange, beveragePriceRange,
-      userEmail, photo, boughtPhoto, menuPhoto
+      userEmail, photo, boughtPhoto, menuPhoto, visitedWith
     } = req.body;
 
     // Generate unique ID for the visit in Node
@@ -211,12 +227,12 @@ app.post('/api/visits', async (req, res) => {
     const insertVisitQuery = `
       INSERT INTO visits (
         id, name, rating, review, lat, lng, address,
-        ordered_items, price_spent, food_price_range, beverage_price_range, user_email
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ordered_items, price_spent, food_price_range, beverage_price_range, user_email, visited_with
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
     await connection.query(insertVisitQuery, [
       visitId, name, rating, review, lat, lng, address,
-      orderedItems, priceSpent, foodPriceRange, beveragePriceRange, userEmail
+      orderedItems, priceSpent, foodPriceRange, beveragePriceRange, userEmail, visitedWith || null
     ]);
 
     // B. Insert Primary Cover Photo
@@ -268,7 +284,7 @@ app.put('/api/visits/:id', async (req, res) => {
     const {
       name, rating, review, lat, lng, address,
       orderedItems, priceSpent, foodPriceRange, beveragePriceRange,
-      userEmail, photo, boughtPhoto, menuPhoto
+      userEmail, photo, boughtPhoto, menuPhoto, visitedWith
     } = req.body;
 
     // 1. Verify owner
@@ -291,12 +307,12 @@ app.put('/api/visits/:id', async (req, res) => {
     const updateVisitQuery = `
       UPDATE visits SET 
         name = ?, rating = ?, review = ?, lat = ?, lng = ?, address = ?,
-        ordered_items = ?, price_spent = ?, food_price_range = ?, beverage_price_range = ?
+        ordered_items = ?, price_spent = ?, food_price_range = ?, beverage_price_range = ?, visited_with = ?
       WHERE id = ?
     `;
     await connection.query(updateVisitQuery, [
       name, rating, review, lat, lng, address,
-      orderedItems, priceSpent, foodPriceRange, beveragePriceRange, visitId
+      orderedItems, priceSpent, foodPriceRange, beveragePriceRange, visitedWith || null, visitId
     ]);
 
     // 3. Fetch existing photos from DB
@@ -487,8 +503,8 @@ app.get('/api/users/:email', async (req, res) => {
 
     // Compute stats (Unique cafe spots count + total visit logs count)
     const [stats] = await pool.query(
-      'SELECT COUNT(DISTINCT name) as visitedSpotCount, COUNT(*) as totalVisitsCount FROM visits WHERE user_email = ?',
-      [email]
+      'SELECT COUNT(DISTINCT name) as visitedSpotCount, COUNT(*) as totalVisitsCount FROM visits WHERE user_email = ? OR FIND_IN_SET(?, visited_with) > 0',
+      [email, email]
     );
 
     res.json({
@@ -507,6 +523,19 @@ app.get('/api/users/:email', async (req, res) => {
   } catch (error) {
     console.error('Error fetching user profile:', error);
     res.status(500).json({ error: 'Failed to retrieve user profile' });
+  }
+});
+
+// 5b. Get All Users (for visited with checklist)
+app.get('/api/users', async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      'SELECT email, name, avatar, custom_status FROM users'
+    );
+    res.json(rows);
+  } catch (error) {
+    console.error('Error fetching all users:', error);
+    res.status(500).json({ error: 'Failed to retrieve users' });
   }
 });
 

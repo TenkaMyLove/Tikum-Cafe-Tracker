@@ -91,6 +91,14 @@ const Icon = ({ name, className = "icon" }) => {
         <circle cx="12" cy="12" r="3" />
         <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
       </svg>
+    ),
+    group: (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+        <circle cx="9" cy="7" r="4" />
+        <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+      </svg>
     )
   };
   return icons[name] || null;
@@ -175,6 +183,19 @@ export default function App() {
   });
   
   const [visits, setVisits] = useState([]);
+  const [allUsers, setAllUsers] = useState([]);
+
+  const fetchAllUsers = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/api/users`);
+      if (response.ok) {
+        const data = await response.json();
+        setAllUsers(data);
+      }
+    } catch (error) {
+      console.error('Error fetching all users:', error);
+    }
+  };
 
   const [activeTab, setActiveTab] = useState('feed'); // 'feed' | 'map' | 'add'
   const [isRegisterMode, setIsRegisterMode] = useState(false);
@@ -362,6 +383,9 @@ export default function App() {
   // Fetch visits on mount and when currentUser changes
   useEffect(() => {
     fetchVisits();
+    if (currentUser) {
+      fetchAllUsers();
+    }
   }, [currentUser]);
 
   useEffect(() => {
@@ -445,6 +469,7 @@ export default function App() {
 
   const handleLogout = () => {
     setCurrentUser(null);
+    setAllUsers([]);
     setAuthError('');
     setActiveTab('feed');
   };
@@ -799,6 +824,7 @@ export default function App() {
             : <AddVisitView 
                 onVisitAdded={fetchVisits} 
                 currentUser={currentUser} 
+                allUsers={allUsers}
                 setActiveTab={setActiveTab} 
                 revisitPreFill={revisitPreFill}
                 clearRevisitPreFill={() => setRevisitPreFill(null)}
@@ -839,6 +865,7 @@ export default function App() {
           visit={selectedVisit} 
           visits={visits}
           currentUser={currentUser}
+          allUsers={allUsers}
           onClose={() => setSelectedVisit(null)} 
           onNavigateToMap={handleNavigateToMap} 
           onOpenLightbox={handleOpenLightbox}
@@ -1280,24 +1307,60 @@ function FeedView({ visits, onSelectVisit, onNavigateToMap, onViewProfile }) {
                 )}
 
                 <div className="card-footer">
-                  <div 
-                    className="card-user" 
-                    onClick={(e) => {
-                      e.stopPropagation(); // Prevent opening the visit detail modal
-                      onViewProfile(visit.userEmail);
-                    }}
-                    style={{ cursor: 'pointer' }}
-                    title={`View ${visit.user}'s profile`}
-                  >
-                    <div className="avatar" style={{ width: '22px', height: '22px', fontSize: '0.65rem' }}>
-                      {visit.userAvatar ? (
-                        <img src={visit.userAvatar} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} alt={visit.user} />
-                      ) : (
-                        visit.user.charAt(0)
-                      )}
-                    </div>
-                    <span>Visited by {visit.user}</span>
-                  </div>
+                  {(() => {
+                    const coVisitors = visit.visitedWith ? visit.visitedWith.split(',').map(e => e.trim()).filter(Boolean) : [];
+                    const totalParticipants = 1 + coVisitors.length;
+                    const isTikum = totalParticipants === 4;
+
+                    if (isTikum) {
+                      return (
+                        <div 
+                          className="card-user group-visit" 
+                          style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                          title="Visited by all Tikum members! Group visit ☕"
+                        >
+                          <div 
+                            className="avatar group-avatar" 
+                            style={{ 
+                              width: '22px', 
+                              height: '22px', 
+                              fontSize: '0.65rem', 
+                              background: 'var(--primary-glow)',
+                              color: 'var(--primary)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              borderRadius: '50%'
+                            }}
+                          >
+                            <Icon name="group" style={{ width: '12px', height: '12px' }} />
+                          </div>
+                          <span style={{ fontWeight: 700, color: 'var(--primary)' }}>Tikum</span>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div 
+                        className="card-user" 
+                        onClick={(e) => {
+                          e.stopPropagation(); // Prevent opening the visit detail modal
+                          onViewProfile(visit.userEmail);
+                        }}
+                        style={{ cursor: 'pointer' }}
+                        title={`View ${visit.user}'s profile`}
+                      >
+                        <div className="avatar" style={{ width: '22px', height: '22px', fontSize: '0.65rem' }}>
+                          {visit.userAvatar ? (
+                            <img src={visit.userAvatar} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} alt={visit.user} />
+                          ) : (
+                            visit.user.charAt(0)
+                          )}
+                        </div>
+                        <span>Visited by {visit.user}{coVisitors.length > 0 ? ` +${coVisitors.length}` : ''}</span>
+                      </div>
+                    );
+                  })()}
                   <span style={{ fontSize: '0.75rem', color: 'var(--primary)', fontWeight: 600 }}>View Details →</span>
                 </div>
               </div>
@@ -1603,7 +1666,7 @@ function LockedGuestView({ onLogout }) {
   );
 }
 
-function AddVisitView({ onVisitAdded, currentUser, setActiveTab, revisitPreFill, clearRevisitPreFill }) {
+function AddVisitView({ onVisitAdded, currentUser, allUsers = [], setActiveTab, revisitPreFill, clearRevisitPreFill }) {
   const [name, setName] = useState(revisitPreFill?.name || '');
   const [rating, setRating] = useState(0);
   const [review, setReview] = useState('');
@@ -1618,6 +1681,22 @@ function AddVisitView({ onVisitAdded, currentUser, setActiveTab, revisitPreFill,
   const [beveragePriceRange, setBeveragePriceRange] = useState(revisitPreFill?.beveragePriceRange || 1);
   const [address, setAddress] = useState(revisitPreFill?.address || '');
   const [locationStatus, setLocationStatus] = useState(revisitPreFill ? 'Location and cafe details pre-filled! ✓' : '');
+
+  const [visitedWith, setVisitedWith] = useState([]);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [dropdownRef]);
 
   useEffect(() => {
     if (revisitPreFill) {
@@ -1837,7 +1916,8 @@ function AddVisitView({ onVisitAdded, currentUser, setActiveTab, revisitPreFill,
       priceSpent: priceSpent ? parseFloat(priceSpent.replace(/[^0-9]/g, '')) : null,
       foodPriceRange,
       beveragePriceRange,
-      address: address || 'Cozy Corner, New York'
+      address: address || 'Cozy Corner, New York',
+      visitedWith: visitedWith.filter(Boolean).join(',')
     };
 
     try {
@@ -1893,6 +1973,113 @@ function AddVisitView({ onVisitAdded, currentUser, setActiveTab, revisitPreFill,
                   </button>
                 ))}
               </div>
+            </div>
+
+            <div className="form-group" style={{ position: 'relative' }} ref={dropdownRef}>
+              <label>Visited With</label>
+              <button 
+                type="button" 
+                className="form-input dropdown-checklist-btn" 
+                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                style={{
+                  textAlign: 'left',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  background: 'rgba(255, 255, 255, 0.03)',
+                  border: '1px solid var(--border-color)',
+                  color: 'var(--text-main)',
+                  width: '100%',
+                  cursor: 'pointer'
+                }}
+              >
+                <span>
+                  {visitedWith.length === 0 
+                    ? "Just Me" 
+                    : visitedWith.map(email => {
+                        const u = allUsers.find(user => user.email === email);
+                        return u ? u.name : email;
+                      }).join(', ')
+                  }
+                </span>
+                <span style={{ fontSize: '0.75rem', opacity: 0.8 }}>▼</span>
+              </button>
+              {isDropdownOpen && (
+                <div 
+                  className="glass dropdown-checklist-menu"
+                  style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    zIndex: 100,
+                    background: 'var(--bg-panel-solid)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: 'var(--radius-md)',
+                    marginTop: '0.25rem',
+                    boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
+                    padding: '0.5rem',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.35rem',
+                    maxHeight: '200px',
+                    overflowY: 'auto'
+                  }}
+                >
+                  {allUsers
+                    .filter(u => u.email !== currentUser.email)
+                    .map(user => {
+                      const isChecked = visitedWith.includes(user.email);
+                      return (
+                        <label 
+                          key={user.email} 
+                          className="dropdown-checklist-item"
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            padding: '0.5rem',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            userSelect: 'none',
+                            background: isChecked ? 'rgba(139, 92, 246, 0.08)' : 'transparent',
+                            transition: 'var(--transition)'
+                          }}
+                        >
+                          <input 
+                            type="checkbox" 
+                            checked={isChecked}
+                            onChange={() => {
+                              if (isChecked) {
+                                setVisitedWith(prev => prev.filter(e => e !== user.email));
+                              } else {
+                                setVisitedWith(prev => [...prev, user.email]);
+                              }
+                            }}
+                            style={{
+                              cursor: 'pointer',
+                              accentColor: 'var(--primary)'
+                            }}
+                          />
+                          <div className="avatar" style={{ width: '20px', height: '20px', fontSize: '0.6rem', flexShrink: 0 }}>
+                            {user.avatar ? (
+                              <img src={user.avatar} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} alt={user.name} />
+                            ) : (
+                              user.name.charAt(0)
+                            )}
+                          </div>
+                          <span style={{ fontSize: '0.85rem', color: isChecked ? 'var(--primary)' : 'var(--text-main)', fontWeight: isChecked ? 600 : 400 }}>{user.name}</span>
+                        </label>
+                      );
+                    })
+                  }
+                  {allUsers.filter(u => u.email !== currentUser.email).length === 0 && (
+                    <div style={{ padding: '0.5rem', fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center' }}>
+                      No other members found.
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="form-group">
@@ -2167,7 +2354,7 @@ function AddVisitView({ onVisitAdded, currentUser, setActiveTab, revisitPreFill,
 }
 // --- VISIT DETAIL MODAL OVERLAY ---
 
-function VisitDetailModal({ visit, visits, currentUser, onClose, onNavigateToMap, onOpenLightbox, onAddRevisit, onVisitDeleted, onVisitUpdated, onViewProfile }) {
+function VisitDetailModal({ visit, visits, currentUser, allUsers = [], onClose, onNavigateToMap, onOpenLightbox, onAddRevisit, onVisitDeleted, onVisitUpdated, onViewProfile }) {
   const [currentVisit, setCurrentVisit] = useState(visit);
   const [isSessionDropdownOpen, setIsSessionDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -2175,6 +2362,21 @@ function VisitDetailModal({ visit, visits, currentUser, onClose, onNavigateToMap
 
   // Edit states
   const [isEditing, setIsEditing] = useState(false);
+  const editDropdownRef = useRef(null);
+  const [editVisitedWith, setEditVisitedWith] = useState([]);
+  const [isEditDropdownOpen, setIsEditDropdownOpen] = useState(false);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (editDropdownRef.current && !editDropdownRef.current.contains(event.target)) {
+        setIsEditDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [editDropdownRef]);
   const [editName, setEditName] = useState('');
   const [editRating, setEditRating] = useState(1);
   const [editReview, setEditReview] = useState('');
@@ -2215,6 +2417,7 @@ function VisitDetailModal({ visit, visits, currentUser, onClose, onNavigateToMap
       setEditPhoto(currentVisit.photo || null);
       setEditBoughtPhotos(ensureArray(currentVisit.boughtPhoto));
       setEditMenuPhotos(ensureArray(currentVisit.menuPhoto));
+      setEditVisitedWith(currentVisit.visitedWith ? currentVisit.visitedWith.split(',').map(e => e.trim()).filter(Boolean) : []);
     }
   }, [currentVisit, isEditing]);
 
@@ -2317,7 +2520,8 @@ function VisitDetailModal({ visit, visits, currentUser, onClose, onNavigateToMap
       priceSpent: editPriceSpent ? parseFloat(String(editPriceSpent).replace(/[^0-9]/g, '')) : null,
       foodPriceRange: editFoodPriceRange,
       beveragePriceRange: editBeveragePriceRange,
-      userEmail: currentUser.email
+      userEmail: currentUser.email,
+      visitedWith: editVisitedWith.filter(Boolean).join(',')
     };
 
     try {
@@ -2395,6 +2599,115 @@ function VisitDetailModal({ visit, visits, currentUser, onClose, onNavigateToMap
                     </button>
                   ))}
                 </div>
+              </div>
+
+              <div className="form-group" style={{ position: 'relative' }} ref={editDropdownRef}>
+                <label style={{ fontSize: '0.85rem', color: 'var(--text-dim)', fontWeight: 600, display: 'block', marginBottom: '0.35rem' }}>Visited With</label>
+                <button 
+                  type="button" 
+                  className="form-input dropdown-checklist-btn" 
+                  onClick={() => setIsEditDropdownOpen(!isEditDropdownOpen)}
+                  style={{
+                    textAlign: 'left',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    background: 'rgba(255, 255, 255, 0.03)',
+                    border: '1px solid var(--border-color)',
+                    color: 'var(--text-main)',
+                    width: '100%',
+                    padding: '0.75rem',
+                    borderRadius: 'var(--radius-md)',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <span>
+                    {editVisitedWith.length === 0 
+                      ? "Just Me" 
+                      : editVisitedWith.map(email => {
+                          const u = allUsers.find(user => user.email === email);
+                          return u ? u.name : email;
+                        }).join(', ')
+                    }
+                  </span>
+                  <span style={{ fontSize: '0.75rem', opacity: 0.8 }}>▼</span>
+                </button>
+                {isEditDropdownOpen && (
+                  <div 
+                    className="glass dropdown-checklist-menu"
+                    style={{
+                      position: 'absolute',
+                      top: '100%',
+                      left: 0,
+                      right: 0,
+                      zIndex: 100,
+                      background: 'var(--bg-panel-solid)',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: 'var(--radius-md)',
+                      marginTop: '0.25rem',
+                      boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
+                      padding: '0.5rem',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.35rem',
+                      maxHeight: '200px',
+                      overflowY: 'auto'
+                    }}
+                  >
+                    {allUsers
+                      .filter(u => u.email !== currentVisit.userEmail)
+                      .map(user => {
+                        const isChecked = editVisitedWith.includes(user.email);
+                        return (
+                          <label 
+                            key={user.email} 
+                            className="dropdown-checklist-item"
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.5rem',
+                              padding: '0.5rem',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              userSelect: 'none',
+                              background: isChecked ? 'rgba(139, 92, 246, 0.08)' : 'transparent',
+                              transition: 'var(--transition)'
+                            }}
+                          >
+                            <input 
+                              type="checkbox" 
+                              checked={isChecked}
+                              onChange={() => {
+                                if (isChecked) {
+                                  setEditVisitedWith(prev => prev.filter(e => e !== user.email));
+                                } else {
+                                  setEditVisitedWith(prev => [...prev, user.email]);
+                                }
+                              }}
+                              style={{
+                                cursor: 'pointer',
+                                accentColor: 'var(--primary)'
+                              }}
+                            />
+                            <div className="avatar" style={{ width: '20px', height: '20px', fontSize: '0.6rem', flexShrink: 0 }}>
+                              {user.avatar ? (
+                                <img src={user.avatar} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} alt={user.name} />
+                              ) : (
+                                user.name.charAt(0)
+                              )}
+                            </div>
+                            <span style={{ fontSize: '0.85rem', color: isChecked ? 'var(--primary)' : 'var(--text-main)', fontWeight: isChecked ? 600 : 400 }}>{user.name}</span>
+                          </label>
+                        );
+                      })
+                    }
+                    {allUsers.filter(u => u.email !== currentVisit.userEmail).length === 0 && (
+                      <div style={{ padding: '0.5rem', fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center' }}>
+                        No other members found.
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="form-group">
@@ -2931,39 +3244,85 @@ function VisitDetailModal({ visit, visits, currentUser, onClose, onNavigateToMap
             </div>
           )}
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '1.5rem', borderTop: '1px solid var(--border-color)', marginBottom: '1.5rem' }}>
-            <div 
-              className="card-user" 
-              onClick={() => {
-                onViewProfile(currentVisit.userEmail);
-              }}
-              style={{ cursor: 'pointer' }}
-              title={`View ${currentVisit.user}'s profile`}
-            >
-              <div className="avatar" style={{ width: '28px', height: '28px', fontSize: '0.85rem' }}>
-                {currentVisit.userAvatar ? (
-                  <img src={currentVisit.userAvatar} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} alt={currentVisit.user} />
-                ) : (
-                  currentVisit.user.charAt(0)
-                )}
-              </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border-color)', marginBottom: '1.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
               <div>
-                <span style={{ fontSize: '0.9rem', fontWeight: 600, display: 'block' }}>{currentVisit.user}</span>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>{currentVisit.userStatus || 'Partner in Caffeine'}</span>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: '0.35rem' }}>
+                  👥 Visitors
+                </span>
+                {(() => {
+                  const coVisitors = currentVisit.visitedWith ? currentVisit.visitedWith.split(',').map(e => e.trim()).filter(Boolean) : [];
+                  const totalParticipants = 1 + coVisitors.length;
+                  const isTikum = totalParticipants === 4;
+
+                  if (isTikum) {
+                    return (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--primary)' }}>Tikum</span>
+                        <div style={{ display: 'flex', gap: '0.25rem' }}>
+                          {allUsers.map(user => (
+                            <div 
+                              key={user.email}
+                              onClick={() => onViewProfile(user.email)}
+                              className="avatar clickable-avatar-chip" 
+                              style={{ width: '20px', height: '20px', fontSize: '0.6rem', cursor: 'pointer' }}
+                              title={`View ${user.name}'s profile`}
+                            >
+                              {user.avatar ? (
+                                <img src={user.avatar} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} alt={user.name} />
+                              ) : (
+                                user.name.charAt(0)
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.35rem', fontSize: '0.95rem' }}>
+                      <span style={{ color: 'var(--text-muted)' }}>Visited by</span>
+                      <span 
+                        onClick={() => onViewProfile(currentVisit.userEmail)}
+                        style={{ fontWeight: 600, color: 'var(--text-main)', cursor: 'pointer', textDecoration: 'underline' }}
+                        title={`View ${currentVisit.user}'s profile`}
+                      >
+                        {currentVisit.user}
+                      </span>
+                      {coVisitors.map((email) => {
+                        const u = allUsers.find(user => user.email === email);
+                        const displayName = u ? u.name : email;
+                        return (
+                          <React.Fragment key={email}>
+                            <span style={{ color: 'var(--text-muted)' }}>,</span>
+                            <span 
+                              onClick={() => onViewProfile(email)}
+                              style={{ fontWeight: 600, color: 'var(--text-main)', cursor: 'pointer', textDecoration: 'underline' }}
+                              title={`View ${displayName}'s profile`}
+                            >
+                              {displayName}
+                            </span>
+                          </React.Fragment>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
               </div>
-            </div>
-            
-            {/* Show Coordinates details - fully interactive */}
-            <div 
-              className="gps-click-link"
-              onClick={() => onNavigateToMap(currentVisit)}
-              title="Click to locate on interactive map 🗺️"
-              style={{ textAlign: 'right' }}
-            >
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginBottom: '0.15rem' }}>GPS Coordinates</div>
-              <code style={{ fontSize: '0.75rem', color: 'var(--primary)', fontFamily: 'monospace' }}>
-                {parseFloat(currentVisit.lat).toFixed(6)}, {parseFloat(currentVisit.lng).toFixed(6)}
-              </code>
+              
+              {/* Show Coordinates details - fully interactive */}
+              <div 
+                className="gps-click-link"
+                onClick={() => onNavigateToMap(currentVisit)}
+                title="Click to locate on interactive map 🗺️"
+                style={{ textAlign: 'right' }}
+              >
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginBottom: '0.15rem' }}>GPS Coordinates</div>
+                <code style={{ fontSize: '0.75rem', color: 'var(--primary)', fontFamily: 'monospace' }}>
+                  {parseFloat(currentVisit.lat).toFixed(6)}, {parseFloat(currentVisit.lng).toFixed(6)}
+                </code>
+              </div>
             </div>
           </div>
 
