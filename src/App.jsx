@@ -942,13 +942,6 @@ export default function App() {
                       <div className="discord-stat-label">Spots Visited</div>
                     </div>
                   </div>
-                  <div className="discord-stat-card">
-                    <span className="discord-stat-icon">📝</span>
-                    <div>
-                      <div className="discord-stat-value">{userProfileData.stats?.totalVisitsCount || 0}</div>
-                      <div className="discord-stat-label">Logs Logged</div>
-                    </div>
-                  </div>
                 </div>
               </div>
 
@@ -1159,13 +1152,6 @@ export default function App() {
                             <div>
                               <div className="discord-stat-value">{userProfileData?.stats?.visitedSpotCount || 0}</div>
                               <div className="discord-stat-label">Spots Visited</div>
-                            </div>
-                          </div>
-                          <div className="discord-stat-card">
-                            <span className="discord-stat-icon">📝</span>
-                            <div>
-                              <div className="discord-stat-value">{userProfileData?.stats?.totalVisitsCount || 0}</div>
-                              <div className="discord-stat-label">Logs Logged</div>
                             </div>
                           </div>
                         </div>

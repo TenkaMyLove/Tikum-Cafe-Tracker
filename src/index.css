@@ -1955,6 +1955,9 @@ body {
 }
 
 .discord-edit-btn {
+  position: absolute;
+  top: 14px;
+  right: 16px;
   border: none;
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -1965,7 +1968,6 @@ body {
   font-weight: 600;
   cursor: pointer;
   transition: var(--transition);
-  margin-bottom: 5px;
 }
 
 .discord-edit-btn:hover {
@@ -2040,12 +2042,14 @@ body {
   color: #dbdee1;
   line-height: 1.4;
   font-family: 'Plus Jakarta Sans', sans-serif;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 /* Statistics Grid */
 .discord-stats-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 10px;
   margin-top: 6px;
 }
