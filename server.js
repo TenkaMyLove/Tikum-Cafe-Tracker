@@ -85,6 +85,33 @@ async function runMigrations() {
       }
     }
 
+    // 4. Migrate users table for custom profiles
+    console.log('Checking database columns for users table...');
+    const [columns] = await connection.query(`
+      SELECT COLUMN_NAME 
+      FROM information_schema.COLUMNS 
+      WHERE TABLE_SCHEMA = DATABASE() 
+        AND TABLE_NAME = 'users'
+    `);
+    const colNames = columns.map(c => c.COLUMN_NAME.toLowerCase());
+
+    if (!colNames.includes('avatar')) {
+      await connection.query('ALTER TABLE users ADD COLUMN avatar LONGTEXT NULL');
+      console.log('✅ Added column users.avatar');
+    }
+    if (!colNames.includes('banner_color')) {
+      await connection.query("ALTER TABLE users ADD COLUMN banner_color VARCHAR(50) DEFAULT '#8B5CF6'");
+      console.log('✅ Added column users.banner_color');
+    }
+    if (!colNames.includes('bio')) {
+      await connection.query('ALTER TABLE users ADD COLUMN bio TEXT NULL');
+      console.log('✅ Added column users.bio');
+    }
+    if (!colNames.includes('custom_status')) {
+      await connection.query("ALTER TABLE users ADD COLUMN custom_status VARCHAR(150) DEFAULT 'Partner in Caffeine'");
+      console.log('✅ Added column users.custom_status');
+    }
+
     console.log('🎉 Database migrations completed successfully!');
   } catch (error) {
     console.error('❌ Error during database migrations:', error.message);
@@ -125,6 +152,8 @@ app.get('/api/visits', async (req, res) => {
           v.visit_date AS date,
           u.name AS user,
           u.email AS userEmail,
+          u.avatar AS userAvatar,
+          u.custom_status AS userStatus,
           (
               SELECT p.photo_url
               FROM photos p
@@ -384,7 +413,7 @@ app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
   try {
     const [rows] = await pool.query(
-      'SELECT email, name, role, password_hash FROM users WHERE email = ?',
+      'SELECT email, name, role, password_hash, avatar, banner_color, bio, custom_status FROM users WHERE email = ?',
       [email]
     );
 
@@ -398,7 +427,15 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(401).json({ error: 'Incorrect email or password.' });
     }
 
-    res.json({ email: user.email, name: user.name, role: user.role });
+    res.json({ 
+      email: user.email, 
+      name: user.name, 
+      role: user.role,
+      avatar: user.avatar,
+      banner_color: user.banner_color,
+      bio: user.bio,
+      custom_status: user.custom_status
+    });
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ error: 'Authentication failed' });
@@ -420,10 +457,78 @@ app.post('/api/auth/register', async (req, res) => {
       [email, password, name, role || 'admin']
     );
 
-    res.status(201).json({ email, name, role: role || 'admin' });
+    res.status(201).json({ 
+      email, 
+      name, 
+      role: role || 'admin',
+      avatar: null,
+      banner_color: '#8B5CF6',
+      bio: '',
+      custom_status: 'Partner in Caffeine'
+    });
   } catch (error) {
     console.error('Registration error:', error);
     res.status(500).json({ error: 'Registration failed' });
+  }
+});
+
+// 5. Get User Profile and Visit Stats
+app.get('/api/users/:email', async (req, res) => {
+  const email = req.params.email;
+  try {
+    const [rows] = await pool.query(
+      'SELECT email, name, role, avatar, banner_color, bio, custom_status FROM users WHERE email = ?',
+      [email]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    const user = rows[0];
+
+    // Compute stats (Unique cafe spots count + total visit logs count)
+    const [stats] = await pool.query(
+      'SELECT COUNT(DISTINCT name) as visitedSpotCount, COUNT(*) as totalVisitsCount FROM visits WHERE user_email = ?',
+      [email]
+    );
+
+    res.json({
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      avatar: user.avatar,
+      banner_color: user.banner_color,
+      bio: user.bio,
+      custom_status: user.custom_status,
+      stats: {
+        visitedSpotCount: stats[0].visitedSpotCount || 0,
+        totalVisitsCount: stats[0].totalVisitsCount || 0
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching user profile:', error);
+    res.status(500).json({ error: 'Failed to retrieve user profile' });
+  }
+});
+
+// 6. Update User Profile (Self only)
+app.put('/api/users/:email', async (req, res) => {
+  const email = req.params.email;
+  const requestingUserEmail = req.headers['x-user-email'] || req.body.requestingUserEmail;
+
+  if (email !== requestingUserEmail) {
+    return res.status(403).json({ error: 'Unauthorized to update this user profile' });
+  }
+
+  const { name, avatar, banner_color, bio, custom_status } = req.body;
+  try {
+    await pool.query(
+      'UPDATE users SET name = ?, avatar = ?, banner_color = ?, bio = ?, custom_status = ? WHERE email = ?',
+      [name, avatar, banner_color, bio, custom_status, email]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error updating user profile:', error);
+    res.status(500).json({ error: 'Failed to update user profile' });
   }
 });
 

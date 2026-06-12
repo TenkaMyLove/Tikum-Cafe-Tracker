@@ -85,6 +85,12 @@ const Icon = ({ name, className = "icon" }) => {
         <circle cx="12" cy="12" r="2" />
         <path d="M6 12h.01M18 12h.01" />
       </svg>
+    ),
+    settings: (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="3" />
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+      </svg>
     )
   };
   return icons[name] || null;
@@ -223,6 +229,112 @@ export default function App() {
         activeIndex: initialIndex,
         showAllFirst: false
       });
+    }
+  };
+
+  const [isProfilePopoutOpen, setIsProfilePopoutOpen] = useState(false);
+  const [isProfileEditorOpen, setIsProfileEditorOpen] = useState(false);
+  const [userProfileData, setUserProfileData] = useState(null);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(false);
+  
+  // Editor form states
+  const [editName, setEditName] = useState('');
+  const [editAvatar, setEditAvatar] = useState(null);
+  const [editBannerColor, setEditBannerColor] = useState('#8B5CF6');
+  const [editBio, setEditBio] = useState('');
+  const [editCustomStatus, setEditCustomStatus] = useState('');
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+
+  const avatarInputRef = useRef(null);
+
+  // Initialize edit form states when editor modal opens
+  useEffect(() => {
+    if (isProfileEditorOpen && currentUser) {
+      setEditName(currentUser.name || '');
+      setEditAvatar(currentUser.avatar || null);
+      setEditBannerColor(currentUser.banner_color || '#8B5CF6');
+      setEditBio(currentUser.bio || '');
+      setEditCustomStatus(currentUser.custom_status || 'Partner in Caffeine');
+    }
+  }, [isProfileEditorOpen, currentUser]);
+
+  const fetchUserProfile = async (email) => {
+    setIsLoadingProfile(true);
+    try {
+      const response = await fetch(`${API_BASE}/api/users/${email}`);
+      if (response.ok) {
+        const data = await response.json();
+        setUserProfileData(data);
+        // Sync the current user session in local storage and react state if updating self
+        if (currentUser && currentUser.email === email) {
+          const updatedUser = { 
+            ...currentUser, 
+            name: data.name, 
+            avatar: data.avatar, 
+            banner_color: data.banner_color, 
+            bio: data.bio, 
+            custom_status: data.custom_status 
+          };
+          setCurrentUser(updatedUser);
+          localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching user profile details:', error);
+    } finally {
+      setIsLoadingProfile(false);
+    }
+  };
+
+  const handleAvatarChange = async (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        // Compress avatar to 256x256 for optimal profile picture size
+        const compressed = await compressImage(event.target.result, 256, 256, 0.85);
+        setEditAvatar(compressed);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleSaveProfile = async (e) => {
+    e.preventDefault();
+    if (!editName) return;
+    setIsSavingProfile(true);
+    try {
+      const response = await fetch(`${API_BASE}/api/users/${currentUser.email}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-email': currentUser.email
+        },
+        body: JSON.stringify({
+          name: editName,
+          avatar: editAvatar,
+          banner_color: editBannerColor,
+          bio: editBio,
+          custom_status: editCustomStatus,
+          requestingUserEmail: currentUser.email
+        })
+      });
+
+      if (response.ok) {
+        setIsProfileEditorOpen(false);
+        // Refresh profile stats/details
+        await fetchUserProfile(currentUser.email);
+        // Refresh the visits list so display name/avatar updates inside feed cards
+        await fetchVisits();
+      } else {
+        const errData = await response.json();
+        alert('Failed to update profile: ' + (errData.error || 'Server error'));
+      }
+    } catch (error) {
+      console.error('Error saving profile:', error);
+      alert('Network error saving profile changes.');
+    } finally {
+      setIsSavingProfile(false);
     }
   };
 
@@ -528,19 +640,44 @@ export default function App() {
           </nav>
         </div>
 
-        <div className="user-profile">
+        <div 
+          className="user-profile" 
+          onClick={() => {
+            fetchUserProfile(currentUser.email);
+            setIsProfilePopoutOpen(true);
+          }}
+          style={{ cursor: 'pointer' }}
+          title="View User Profile"
+        >
           <div className="user-info">
             <div className="avatar">
-              {currentUser.name.charAt(0)}
+              {currentUser.avatar ? (
+                <img src={currentUser.avatar} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} alt={currentUser.name} />
+              ) : (
+                currentUser.name.charAt(0)
+              )}
             </div>
             <div>
               <div className="username">{currentUser.name}</div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Partner in Caffeine</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{currentUser.custom_status || 'Partner in Caffeine'}</div>
             </div>
           </div>
-          <button className="nav-item" style={{ padding: '0.5rem', minWidth: 'auto' }} onClick={handleLogout} title="Log Out">
-            <Icon name="logout" style={{ width: '20px', height: '20px' }} />
-          </button>
+          <div style={{ display: 'flex', gap: '0.25rem' }} onClick={(e) => e.stopPropagation()}>
+            <button 
+              className="nav-item" 
+              style={{ padding: '0.5rem', minWidth: 'auto' }} 
+              onClick={() => {
+                fetchUserProfile(currentUser.email);
+                setIsProfilePopoutOpen(true);
+              }} 
+              title="User Profile"
+            >
+              <Icon name="settings" style={{ width: '20px', height: '20px' }} />
+            </button>
+            <button className="nav-item" style={{ padding: '0.5rem', minWidth: 'auto' }} onClick={handleLogout} title="Log Out">
+              <Icon name="logout" style={{ width: '20px', height: '20px' }} />
+            </button>
+          </div>
         </div>
       </aside>
 
@@ -577,11 +714,22 @@ export default function App() {
             </nav>
           </div>
 
-          <div className="pwa-user-profile">
+          <div 
+            className="pwa-user-profile" 
+            onClick={() => {
+              fetchUserProfile(currentUser.email);
+              setIsProfilePopoutOpen(true);
+            }}
+            style={{ cursor: 'pointer' }}
+          >
             <div className="pwa-avatar" title={`${currentUser.name} (${currentUser.role === 'admin' ? 'Member' : 'Guest'})`}>
-              {currentUser.name.charAt(0)}
+              {currentUser.avatar ? (
+                <img src={currentUser.avatar} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} alt={currentUser.name} />
+              ) : (
+                currentUser.name.charAt(0)
+              )}
             </div>
-            <button className="pwa-logout-btn" onClick={handleLogout} title="Log Out">
+            <button className="pwa-logout-btn" onClick={(e) => { e.stopPropagation(); handleLogout(); }} title="Log Out">
               <Icon name="logout" style={{ width: '18px', height: '18px' }} />
             </button>
           </div>
@@ -608,8 +756,26 @@ export default function App() {
             )}
             <button 
               className="nav-item" 
+              style={{ padding: '0.4rem', minWidth: 'auto', background: 'transparent' }} 
+              onClick={() => {
+                fetchUserProfile(currentUser.email);
+                setIsProfilePopoutOpen(true);
+              }}
+              title="View Profile"
+            >
+              <div className="avatar" style={{ width: '26px', height: '26px', fontSize: '0.8rem', margin: 0 }}>
+                {currentUser.avatar ? (
+                  <img src={currentUser.avatar} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} alt={currentUser.name} />
+                ) : (
+                  currentUser.name.charAt(0)
+                )}
+              </div>
+            </button>
+            <button 
+              className="nav-item" 
               style={{ padding: '0.5rem', minWidth: 'auto', background: 'transparent' }} 
               onClick={handleLogout}
+              title="Log Out"
             >
               <Icon name="logout" style={{ width: '20px', height: '20px' }} />
             </button>
@@ -697,6 +863,320 @@ export default function App() {
           data={lightboxData} 
           onClose={() => setLightboxData(null)} 
         />
+      )}
+
+      {/* Discord User Popout Modal */}
+      {isProfilePopoutOpen && userProfileData && (
+        <div className="modal-backdrop" onClick={() => setIsProfilePopoutOpen(false)}>
+          <div className="discord-popout-container" onClick={(e) => e.stopPropagation()}>
+            <div 
+              className="discord-banner" 
+              style={{ backgroundColor: userProfileData.banner_color || '#8B5CF6' }}
+            >
+              {currentUser && currentUser.email === userProfileData.email && (
+                <button 
+                  className="discord-banner-edit-btn" 
+                  onClick={() => {
+                    setIsProfilePopoutOpen(false);
+                    setIsProfileEditorOpen(true);
+                  }}
+                  title="Edit Profile"
+                >
+                  <Icon name="settings" style={{ width: '16px', height: '16px' }} />
+                </button>
+              )}
+            </div>
+            
+            <div className="discord-avatar-area">
+              <div className="discord-avatar-wrapper">
+                {userProfileData.avatar ? (
+                  <img src={userProfileData.avatar} alt={userProfileData.name} className="discord-avatar" />
+                ) : (
+                  <div className="discord-avatar-letter">
+                    {userProfileData.name.charAt(0)}
+                  </div>
+                )}
+                <div className="discord-status-dot"></div>
+              </div>
+              
+              {currentUser && currentUser.email === userProfileData.email && (
+                <button 
+                  className="discord-edit-btn"
+                  onClick={() => {
+                    setIsProfilePopoutOpen(false);
+                    setIsProfileEditorOpen(true);
+                  }}
+                >
+                  Edit Profile
+                </button>
+              )}
+            </div>
+
+            <div className="discord-popout-body">
+              <div className="discord-display-name">{userProfileData.name}</div>
+              <div className="discord-username">@{userProfileData.email.split('@')[0]}</div>
+              
+              {userProfileData.custom_status && (
+                <div className="discord-status-bubble">
+                  <span style={{ fontSize: '14px', marginRight: '6px' }}>💬</span>
+                  <span className="discord-status-text">{userProfileData.custom_status}</span>
+                </div>
+              )}
+
+              <hr className="discord-divider" />
+
+              <div className="discord-section">
+                <div className="discord-section-title">About Me</div>
+                <div className="discord-bio" style={{ whiteSpace: 'pre-wrap' }}>
+                  {userProfileData.bio || <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>No bio written yet.</span>}
+                </div>
+              </div>
+
+              <div className="discord-section">
+                <div className="discord-section-title">Tikum Statistics</div>
+                <div className="discord-stats-grid">
+                  <div className="discord-stat-card">
+                    <span className="discord-stat-icon">☕</span>
+                    <div>
+                      <div className="discord-stat-value">{userProfileData.stats?.visitedSpotCount || 0}</div>
+                      <div className="discord-stat-label">Spots Visited</div>
+                    </div>
+                  </div>
+                  <div className="discord-stat-card">
+                    <span className="discord-stat-icon">📝</span>
+                    <div>
+                      <div className="discord-stat-value">{userProfileData.stats?.totalVisitsCount || 0}</div>
+                      <div className="discord-stat-label">Logs Logged</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {currentUser && currentUser.email === userProfileData.email && (
+                <button 
+                  className="btn-danger" 
+                  style={{ width: '100%', marginTop: '1.25rem', padding: '0.65rem', fontSize: '0.85rem' }}
+                  onClick={() => {
+                    setIsProfilePopoutOpen(false);
+                    handleLogout();
+                  }}
+                >
+                  Log Out
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Discord Profile Editor Modal */}
+      {isProfileEditorOpen && (
+        <div className="modal-backdrop" onClick={() => setIsProfileEditorOpen(false)}>
+          <div className="glass modal-content profile-editor-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '750px', width: '95%' }}>
+            <div className="modal-body" style={{ maxHeight: '90vh', overflowY: 'auto', padding: '1.75rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                <h2 style={{ fontFamily: 'Outfit', fontSize: '1.6rem', color: 'var(--text-main)', margin: 0 }}>Profile Settings</h2>
+                <button className="close-modal-btn" onClick={() => setIsProfileEditorOpen(false)} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border-color)', borderRadius: '50%', width: '32px', height: '32px', color: '#fff', fontSize: '1rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+              </div>
+
+              <div className="profile-editor-layout">
+                {/* Left: Edit Form */}
+                <form className="profile-editor-form" onSubmit={handleSaveProfile} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                  
+                  {/* Avatar Upload */}
+                  <div className="form-group">
+                    <label style={{ fontSize: '0.85rem', color: 'var(--text-dim)', fontWeight: 600, display: 'block', marginBottom: '0.5rem' }}>Profile Picture</label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                      <div className="discord-avatar-wrapper" style={{ width: '64px', height: '64px', fontSize: '1.5rem', flexShrink: 0 }}>
+                        {editAvatar ? (
+                          <img src={editAvatar} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} alt="Avatar Preview" />
+                        ) : (
+                          <div className="discord-avatar-letter" style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, var(--primary), var(--accent))', borderRadius: '50%' }}>
+                            {editName.charAt(0) || currentUser.name.charAt(0)}
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button 
+                          type="button" 
+                          className="btn-secondary" 
+                          style={{ padding: '0.5rem 0.75rem', fontSize: '0.8rem' }}
+                          onClick={() => avatarInputRef.current?.click()}
+                        >
+                          Change Avatar
+                        </button>
+                        {editAvatar && (
+                          <button 
+                            type="button" 
+                            className="btn-danger" 
+                            style={{ padding: '0.5rem 0.75rem', fontSize: '0.8rem', background: 'transparent', border: '1px solid rgba(239, 68, 68, 0.4)', color: '#ef4444' }}
+                            onClick={() => setEditAvatar(null)}
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        ref={avatarInputRef} 
+                        style={{ display: 'none' }} 
+                        onChange={handleAvatarChange}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Display Name */}
+                  <div className="form-group">
+                    <label style={{ fontSize: '0.85rem', color: 'var(--text-dim)', fontWeight: 600, display: 'block', marginBottom: '0.35rem' }}>Display Name</label>
+                    <input 
+                      type="text" 
+                      className="form-input" 
+                      maxLength={30}
+                      required
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      style={{ width: '100%', padding: '0.75rem', borderRadius: 'var(--radius-md)', background: 'rgba(255, 255, 255, 0.03)', border: '1px solid var(--border-color)', color: '#fff' }}
+                    />
+                  </div>
+
+                  {/* Banner Color */}
+                  <div className="form-group">
+                    <label style={{ fontSize: '0.85rem', color: 'var(--text-dim)', fontWeight: 600, display: 'block', marginBottom: '0.5rem' }}>Banner Color</label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                      <input 
+                        type="color" 
+                        value={editBannerColor} 
+                        onChange={(e) => setEditBannerColor(e.target.value)}
+                        style={{ width: '40px', height: '40px', border: 'none', borderRadius: '4px', cursor: 'pointer', background: 'transparent' }}
+                      />
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        {['#8B5CF6', '#EC4899', '#10B981', '#EF4444', '#F59E0B', '#3B82F6', '#1E1F22'].map((color) => (
+                          <button
+                            key={color}
+                            type="button"
+                            onClick={() => setEditBannerColor(color)}
+                            style={{
+                              width: '24px',
+                              height: '24px',
+                              borderRadius: '50%',
+                              backgroundColor: color,
+                              border: editBannerColor === color ? '2px solid #fff' : '1px solid rgba(255,255,255,0.2)',
+                              cursor: 'pointer',
+                              transform: editBannerColor === color ? 'scale(1.15)' : 'none',
+                              transition: 'transform 0.15s ease'
+                            }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Custom Status */}
+                  <div className="form-group">
+                    <label style={{ fontSize: '0.85rem', color: 'var(--text-dim)', fontWeight: 600, display: 'block', marginBottom: '0.35rem' }}>Custom Status</label>
+                    <input 
+                      type="text" 
+                      className="form-input" 
+                      placeholder="What is on your mind?"
+                      maxLength={100}
+                      value={editCustomStatus}
+                      onChange={(e) => setEditCustomStatus(e.target.value)}
+                      style={{ width: '100%', padding: '0.75rem', borderRadius: 'var(--radius-md)', background: 'rgba(255, 255, 255, 0.03)', border: '1px solid var(--border-color)', color: '#fff' }}
+                    />
+                  </div>
+
+                  {/* Bio */}
+                  <div className="form-group">
+                    <div style={{ display: 'flex', justify: 'space-between', marginBottom: '0.35rem' }}>
+                      <label style={{ fontSize: '0.85rem', color: 'var(--text-dim)', fontWeight: 600 }}>About Me (Bio)</label>
+                      <span style={{ fontSize: '0.75rem', color: editBio.length >= 190 ? '#ef4444' : 'var(--text-muted)' }}>{editBio.length}/190</span>
+                    </div>
+                    <textarea 
+                      className="form-input" 
+                      rows={3}
+                      placeholder="Write a little about yourself..."
+                      maxLength={190}
+                      value={editBio}
+                      onChange={(e) => setEditBio(e.target.value)}
+                      style={{ width: '100%', padding: '0.75rem', borderRadius: 'var(--radius-md)', background: 'rgba(255, 255, 255, 0.03)', border: '1px solid var(--border-color)', color: '#fff', resize: 'none' }}
+                    />
+                  </div>
+
+                  {/* Actions */}
+                  <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
+                    <button type="submit" className="btn-primary" disabled={isSavingProfile} style={{ flex: 1 }}>
+                      {isSavingProfile ? 'Saving...' : 'Save Profile'}
+                    </button>
+                    <button type="button" className="btn-secondary" onClick={() => setIsProfileEditorOpen(false)} style={{ flex: 1 }}>
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+
+                {/* Right: Live Preview */}
+                <div className="profile-editor-preview">
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-dim)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '0.5rem' }}>Preview</div>
+                  <div className="discord-popout-container preview-mode" style={{ margin: 0, boxShadow: '0 4px 20px rgba(0,0,0,0.3)' }}>
+                    <div className="discord-banner" style={{ backgroundColor: editBannerColor }}></div>
+                    <div className="discord-avatar-area">
+                      <div className="discord-avatar-wrapper">
+                        {editAvatar ? (
+                          <img src={editAvatar} alt={editName} className="discord-avatar" />
+                        ) : (
+                          <div className="discord-avatar-letter">
+                            {editName.charAt(0) || currentUser.name.charAt(0)}
+                          </div>
+                        )}
+                        <div className="discord-status-dot"></div>
+                      </div>
+                    </div>
+                    <div className="discord-popout-body">
+                      <div className="discord-display-name">{editName || currentUser.name}</div>
+                      <div className="discord-username">@{currentUser.email.split('@')[0]}</div>
+                      
+                      {editCustomStatus && (
+                        <div className="discord-status-bubble">
+                          <span style={{ fontSize: '14px', marginRight: '6px' }}>💬</span>
+                          <span className="discord-status-text">{editCustomStatus}</span>
+                        </div>
+                      )}
+
+                      <hr className="discord-divider" />
+
+                      <div className="discord-section">
+                        <div className="discord-section-title">About Me</div>
+                        <div className="discord-bio" style={{ whiteSpace: 'pre-wrap' }}>
+                          {editBio || <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>No bio written yet.</span>}
+                        </div>
+                      </div>
+
+                      <div className="discord-section">
+                        <div className="discord-section-title">Tikum Statistics</div>
+                        <div className="discord-stats-grid">
+                          <div className="discord-stat-card">
+                            <span className="discord-stat-icon">☕</span>
+                            <div>
+                              <div className="discord-stat-value">{userProfileData?.stats?.visitedSpotCount || 0}</div>
+                              <div className="discord-stat-label">Spots Visited</div>
+                            </div>
+                          </div>
+                          <div className="discord-stat-card">
+                            <span className="discord-stat-icon">📝</span>
+                            <div>
+                              <div className="discord-stat-value">{userProfileData?.stats?.totalVisitsCount || 0}</div>
+                              <div className="discord-stat-label">Logs Logged</div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -787,9 +1267,22 @@ function FeedView({ visits, onSelectVisit, onNavigateToMap }) {
                 )}
 
                 <div className="card-footer">
-                  <div className="card-user">
+                  <div 
+                    className="card-user" 
+                    onClick={(e) => {
+                      e.stopPropagation(); // Prevent opening the visit detail modal
+                      fetchUserProfile(visit.userEmail);
+                      setIsProfilePopoutOpen(true);
+                    }}
+                    style={{ cursor: 'pointer' }}
+                    title={`View ${visit.user}'s profile`}
+                  >
                     <div className="avatar" style={{ width: '22px', height: '22px', fontSize: '0.65rem' }}>
-                      {visit.user.charAt(0)}
+                      {visit.userAvatar ? (
+                        <img src={visit.userAvatar} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} alt={visit.user} />
+                      ) : (
+                        visit.user.charAt(0)
+                      )}
                     </div>
                     <span>Visited by {visit.user}</span>
                   </div>
@@ -2408,13 +2901,25 @@ function VisitDetailModal({ visit, visits, currentUser, onClose, onNavigateToMap
           )}
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '1.5rem', borderTop: '1px solid var(--border-color)', marginBottom: '1.5rem' }}>
-            <div className="card-user">
+            <div 
+              className="card-user" 
+              onClick={() => {
+                fetchUserProfile(currentVisit.userEmail);
+                setIsProfilePopoutOpen(true);
+              }}
+              style={{ cursor: 'pointer' }}
+              title={`View ${currentVisit.user}'s profile`}
+            >
               <div className="avatar" style={{ width: '28px', height: '28px', fontSize: '0.85rem' }}>
-                {currentVisit.user.charAt(0)}
+                {currentVisit.userAvatar ? (
+                  <img src={currentVisit.userAvatar} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} alt={currentVisit.user} />
+                ) : (
+                  currentVisit.user.charAt(0)
+                )}
               </div>
               <div>
                 <span style={{ fontSize: '0.9rem', fontWeight: 600, display: 'block' }}>{currentVisit.user}</span>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>Caffeine Logger</span>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>{currentVisit.userStatus || 'Partner in Caffeine'}</span>
               </div>
             </div>
             
