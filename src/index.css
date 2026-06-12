@@ -181,6 +181,7 @@ body {
   font-weight: 600;
   font-size: 0.9rem;
   color: white;
+  flex-shrink: 0;
 }
 
 .username {
@@ -1467,6 +1468,7 @@ body {
   font-weight: 600;
   font-size: 0.8rem;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+  flex-shrink: 0;
 }
 
 .pwa-logout-btn {
