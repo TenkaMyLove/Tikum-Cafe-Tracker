@@ -1038,7 +1038,7 @@ function PhotoGallery({ photos, onRemove, onPhotoClick }) {
           <div 
             key={idx} 
             className="gallery-item" 
-            style={{ position: 'relative', width: '100%', aspectRatio: '1/1', overflow: 'hidden', borderRadius: 'var(--radius-sm)', cursor: 'pointer' }}
+            style={{ position: 'relative', width: '100%', overflow: 'hidden', borderRadius: 'var(--radius-sm)', cursor: 'pointer' }}
             onClick={() => {
               if (onPhotoClick) onPhotoClick(idx);
               else if (!onRemove) window.open(p, '_blank');
