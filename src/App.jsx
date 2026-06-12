@@ -3257,15 +3257,16 @@ function VisitDetailModal({ visit, visits, currentUser, allUsers = [], onClose, 
 
                   if (isTikum) {
                     return (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <span style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--primary)' }}>Tikum</span>
+                      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.4rem', fontSize: '0.95rem' }}>
+                        <span style={{ color: 'var(--text-muted)' }}>Visited by</span>
+                        <span style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--primary)' }}>Tikum</span>
                         <div style={{ display: 'flex', gap: '0.25rem' }}>
                           {allUsers.map(user => (
                             <div 
                               key={user.email}
                               onClick={() => onViewProfile(user.email)}
                               className="avatar clickable-avatar-chip" 
-                              style={{ width: '20px', height: '20px', fontSize: '0.6rem', cursor: 'pointer' }}
+                              style={{ width: '22px', height: '22px', fontSize: '0.6rem', cursor: 'pointer' }}
                               title={`View ${user.name}'s profile`}
                             >
                               {user.avatar ? (
@@ -3280,27 +3281,44 @@ function VisitDetailModal({ visit, visits, currentUser, allUsers = [], onClose, 
                     );
                   }
 
-                  return (
-                    <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.35rem', fontSize: '0.95rem' }}>
+                   return (
+                    <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.4rem', fontSize: '0.95rem' }}>
                       <span style={{ color: 'var(--text-muted)' }}>Visited by</span>
+                      
                       <span 
                         onClick={() => onViewProfile(currentVisit.userEmail)}
-                        style={{ fontWeight: 600, color: 'var(--text-main)', cursor: 'pointer', textDecoration: 'underline' }}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontWeight: 600, color: 'var(--text-main)', cursor: 'pointer', textDecoration: 'underline' }}
                         title={`View ${currentVisit.user}'s profile`}
                       >
+                        <div className="avatar clickable-avatar-chip" style={{ width: '20px', height: '20px', fontSize: '0.6rem', flexShrink: 0 }}>
+                          {currentVisit.userAvatar ? (
+                            <img src={currentVisit.userAvatar} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} alt={currentVisit.user} />
+                          ) : (
+                            currentVisit.user.charAt(0)
+                          )}
+                        </div>
                         {currentVisit.user}
                       </span>
+
                       {coVisitors.map((email) => {
                         const u = allUsers.find(user => user.email === email);
                         const displayName = u ? u.name : email;
+                        const userAvatar = u ? u.avatar : null;
                         return (
                           <React.Fragment key={email}>
                             <span style={{ color: 'var(--text-muted)' }}>,</span>
                             <span 
                               onClick={() => onViewProfile(email)}
-                              style={{ fontWeight: 600, color: 'var(--text-main)', cursor: 'pointer', textDecoration: 'underline' }}
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontWeight: 600, color: 'var(--text-main)', cursor: 'pointer', textDecoration: 'underline' }}
                               title={`View ${displayName}'s profile`}
                             >
+                              <div className="avatar clickable-avatar-chip" style={{ width: '20px', height: '20px', fontSize: '0.6rem', flexShrink: 0 }}>
+                                {userAvatar ? (
+                                  <img src={userAvatar} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} alt={displayName} />
+                                ) : (
+                                  displayName.charAt(0)
+                                )}
+                              </div>
                               {displayName}
                             </span>
                           </React.Fragment>
