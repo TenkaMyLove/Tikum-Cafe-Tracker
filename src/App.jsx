@@ -612,7 +612,7 @@ export default function App() {
               onClick={() => setActiveTab('feed')}
             >
               <Icon name="feed" />
-              <span>Feed</span>
+              <span>Cafe Feed</span>
             </button>
             <button 
               className={`nav-item ${activeTab === 'map' ? 'active' : ''}`}
