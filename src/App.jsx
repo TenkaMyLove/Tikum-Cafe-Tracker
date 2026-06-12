@@ -821,14 +821,14 @@ export default function App() {
             onClick={() => setActiveTab('map')}
           >
             <Icon name="map" />
-            <span>Map</span>
+            <span>Cafe Spot</span>
           </button>
           <button 
             className={`mobile-nav-btn ${activeTab === 'add' ? 'active' : ''}`}
             onClick={() => setActiveTab('add')}
           >
             <Icon name="add" />
-            <span>Add</span>
+            <span>Add Log</span>
           </button>
         </nav>
       )}
