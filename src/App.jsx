@@ -506,7 +506,7 @@ export default function App() {
               onClick={() => setActiveTab('map')}
             >
               <Icon name="map" />
-              <span>Interactive Map</span>
+              <span>Cafe Spot</span>
             </button>
             <button 
               className={`nav-item ${activeTab === 'add' ? 'active' : ''}`}
@@ -708,7 +708,7 @@ function FeedView({ visits, onSelectVisit, onNavigateToMap }) {
   return (
     <div>
       <div className="section-header">
-        <h1>Caffeine Feed</h1>
+        <h1>Tikum Cafe Tracker</h1>
         <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>
           Showing {visits.length} coffee spots (Click cards to view details)
         </div>
@@ -906,7 +906,7 @@ function MapView({ visits, mapCenterOverride, setMapCenterOverride }) {
   return (
     <div className="map-screen-wrapper">
       <div className="section-header">
-        <h1>Cafe Map</h1>
+        <h1>Cafe Spot</h1>
         <p style={{ color: 'var(--text-muted)' }}>Explore all the spots you and your friend have logged</p>
       </div>
       <div ref={containerRef} className="map-viewport" id="map-container"></div>
@@ -1517,7 +1517,7 @@ function AddVisitView({ onVisitAdded, currentUser, setActiveTab, revisitPreFill,
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem', marginBottom: '1rem' }}>
               {/* Bought Photos */}
               <div className="form-group">
-                <label>What you bought (Photos)</label>
+                <label>What you bought / Cafe Vibe</label>
                 <input 
                   type="file" 
                   ref={boughtFileInputRef} 
@@ -1552,7 +1552,7 @@ function AddVisitView({ onVisitAdded, currentUser, setActiveTab, revisitPreFill,
 
               {/* Menu Photos */}
               <div className="form-group">
-                <label>Full Restaurant Menu (Photos)</label>
+                <label>Menu</label>
                 <input 
                   type="file" 
                   ref={menuFileInputRef} 
