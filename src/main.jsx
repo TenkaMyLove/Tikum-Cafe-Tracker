@@ -7,7 +7,23 @@ import App from './App.jsx'
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js')
-      .then(reg => console.log('Service Worker registered successfully!', reg.scope))
+      .then(reg => {
+        console.log('Service Worker registered successfully!', reg.scope);
+        
+        // Listen for new service worker updates
+        reg.addEventListener('updatefound', () => {
+          const newWorker = reg.installing;
+          if (newWorker) {
+            newWorker.addEventListener('statechange', () => {
+              // Reload page once the new service worker completes activation
+              if (newWorker.state === 'activated') {
+                console.log('New service worker activated. Reloading page...');
+                window.location.reload();
+              }
+            });
+          }
+        });
+      })
       .catch(err => console.error('Service Worker registration failed:', err));
   });
 }
