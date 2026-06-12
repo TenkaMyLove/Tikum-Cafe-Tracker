@@ -246,6 +246,7 @@ export default function App() {
   const [isSavingProfile, setIsSavingProfile] = useState(false);
 
   const avatarInputRef = useRef(null);
+  const backdropMouseDownRef = useRef(false);
 
   // Initialize edit form states when editor modal opens
   useEffect(() => {
@@ -867,7 +868,17 @@ export default function App() {
 
       {/* Discord User Popout Modal */}
       {isProfilePopoutOpen && userProfileData && (
-        <div className="modal-backdrop" onClick={() => setIsProfilePopoutOpen(false)}>
+        <div 
+          className="modal-backdrop" 
+          onMouseDown={(e) => {
+            backdropMouseDownRef.current = e.target === e.currentTarget;
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget && backdropMouseDownRef.current) {
+              setIsProfilePopoutOpen(false);
+            }
+          }}
+        >
           <div className="discord-popout-container" onClick={(e) => e.stopPropagation()}>
             <div 
               className="discord-banner" 
@@ -964,7 +975,17 @@ export default function App() {
 
       {/* Discord Profile Editor Modal */}
       {isProfileEditorOpen && (
-        <div className="modal-backdrop" onClick={() => setIsProfileEditorOpen(false)}>
+        <div 
+          className="modal-backdrop" 
+          onMouseDown={(e) => {
+            backdropMouseDownRef.current = e.target === e.currentTarget;
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget && backdropMouseDownRef.current) {
+              setIsProfileEditorOpen(false);
+            }
+          }}
+        >
           <div className="glass modal-content profile-editor-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '750px', width: '95%' }}>
             <div className="modal-body" style={{ maxHeight: '90vh', overflowY: 'auto', padding: '1.75rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
@@ -1174,7 +1195,7 @@ function FeedView({ visits, onSelectVisit, onNavigateToMap }) {
   return (
     <div>
       <div className="section-header">
-        <h1>Tikum Cafe Tracker</h1>
+        <h1>Cafe Feed</h1>
         <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>
           Showing {visits.length} coffee spots (Click cards to view details)
         </div>
@@ -2147,6 +2168,7 @@ function VisitDetailModal({ visit, visits, currentUser, onClose, onNavigateToMap
   const [currentVisit, setCurrentVisit] = useState(visit);
   const [isSessionDropdownOpen, setIsSessionDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
+  const backdropMouseDownRef = useRef(false);
 
   // Edit states
   const [isEditing, setIsEditing] = useState(false);
@@ -2321,7 +2343,17 @@ function VisitDetailModal({ visit, visits, currentUser, onClose, onNavigateToMap
 
   if (isEditing) {
     return (
-      <div className="modal-backdrop" onClick={onClose}>
+      <div 
+        className="modal-backdrop" 
+        onMouseDown={(e) => {
+          backdropMouseDownRef.current = e.target === e.currentTarget;
+        }}
+        onClick={(e) => {
+          if (e.target === e.currentTarget && backdropMouseDownRef.current) {
+            onClose();
+          }
+        }}
+      >
         <div className="glass modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '650px', width: '90%' }}>
           <div className="modal-body" style={{ maxHeight: '85vh', overflowY: 'auto', padding: '1.5rem' }}>
             <h2 style={{ fontFamily: 'Outfit', fontSize: '1.6rem', marginBottom: '1.25rem', color: 'var(--text-main)' }}>Edit Visit Log</h2>
@@ -2644,7 +2676,17 @@ function VisitDetailModal({ visit, visits, currentUser, onClose, onNavigateToMap
   }
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div 
+      className="modal-backdrop" 
+      onMouseDown={(e) => {
+        backdropMouseDownRef.current = e.target === e.currentTarget;
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget && backdropMouseDownRef.current) {
+          onClose();
+        }
+      }}
+    >
       <div className="glass modal-content" onClick={(e) => e.stopPropagation()}>
         {currentVisit.photo && (
           <img 
