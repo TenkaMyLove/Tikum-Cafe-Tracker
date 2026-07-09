@@ -3,13 +3,14 @@
   "name": "Tikum Cafe Tracker",
   "icons": [
     {
-      "src": "/favicon.svg",
+      "src": "/cafe/favicon.svg",
       "type": "image/svg+xml",
       "sizes": "any",
-      "purpose": "any"
+      "purpose": "any maskable"
     }
   ],
-  "start_url": "/",
+  "start_url": "/cafe/",
+  "scope": "/cafe/",
   "background_color": "#0a0a0c",
   "theme_color": "#8b5cf6",
   "display": "standalone",
